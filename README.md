@@ -33,6 +33,13 @@ source devel/setup.bash  ## (YOu need to do this everytime you open a new termin
     View the tf tree rosrun tf view_frames
     sudo apt install ros-noetic-tf2-tools
     rosrun tf2_tools view_frames.py
+
+8) Current transform between robot and map
+    rosrun tf tf_echo /map /base_footprint
+
+9) setting up waffle_tf_listener.py
+
+10) setting up 
     
 
 
