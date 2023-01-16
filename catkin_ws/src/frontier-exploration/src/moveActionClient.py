@@ -8,7 +8,7 @@ from threading import Thread
 from geometry_msgs.msg import Pose
 
 
-class ActionClient() :
+class moveActionClient() :
     def __init__(self):
         self.init_node()
         self.init_action_client()
@@ -39,20 +39,18 @@ class ActionClient() :
         self.client.send_goal(goal)
         self.client.wait_for_result()
 
-
+    
 def main(argv) :
     '''
     #####  Input Key #####
     -x : goal position in x (from base frame of robot)
     -y : goal position in y (from base frame of robot)
     '''
-    goalSet = ActionClient()
-    goalSet.init_node()
-    goalSet.init_action_client()
+    goalSet = moveActionClient()
     
     if len(argv) == 0 :
         rospy.loginfo('You can enter (x,y) commands in terminal\n \
-            example, \n \t rosrun frontier-exploration simpleActionClient -x <goal position in x> -y <goal position in y> \n')
+            example, \n \t rosrun frontier-exploration moveActionClient -x <goal position in x> -y <goal position in y> \n')
     try :
         opts, args = getopt.getopt(argv, "x:y:",[])
 
@@ -91,6 +89,4 @@ if __name__ == '__main__' :
     -y : goal position in y (from base frame of robot)
     '''
     main(sys.argv[1:])
-
-
 
