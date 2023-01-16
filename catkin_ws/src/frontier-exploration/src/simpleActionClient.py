@@ -50,16 +50,19 @@ def main(argv) :
     goalSet.init_node()
     goalSet.init_action_client()
     
+    if len(argv) == 0 :
+        rospy.loginfo('You can enter (x,y) commands in terminal\n \
+            example, \n \t rosrun frontier-exploration simpleActionClient -x <goal position in x> -y <goal position in y> \n')
     try :
         opts, args = getopt.getopt(argv, "x:y:",[])
 
     except getopt.GetoptError:
-      print('Unaccepted input: \n \t -x <goal position in x> \n \t -y <goal position in y>')
+      rospy.loginfo('Unaccepted input: \n \t -x <goal position in x> \n \t -y <goal position in y>')
       sys.exit(2)
     
     x = 0.0
     y = 0.0
-    
+
     if len(args) == 2 :
         try :
             x = float(args[0])
@@ -78,6 +81,7 @@ def main(argv) :
             y = float(arg)
 
     rospy.loginfo(f'applying translation goal: x = {x}, y = {y}')
+
     goalSet.coordinate_callback(x,y)
 
 if __name__ == '__main__' :
