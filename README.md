@@ -38,6 +38,10 @@ source devel/setup.bash  ## (YOu need to do this everytime you open a new termin
     rosrun tf tf_echo /map /base_footprint
 
 9) setting up waffle_tf_listener.py
+    rosrun frontier-exploration waffle_tf_listener.py
+    (You may need to resource the terminal before running....
+        cd catkin_ws
+        source devel/setup.bash)
 
 10) setting up 
     
