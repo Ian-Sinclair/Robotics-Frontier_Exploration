@@ -2,6 +2,7 @@
 
 import rospy
 import actionlib
+import getopt, sys
 from move_base_msgs.msg import MoveBaseAction, MoveBaseGoal
 from threading import Thread
 from geometry_msgs.msg import Pose
@@ -39,11 +40,53 @@ class ActionClient() :
         self.client.wait_for_result()
 
 
-if __name__ == '__main__' :
+def main(argv) :
+    '''
+    #####  Input Key #####
+    -x : goal position in x (from base frame of robot)
+    -y : goal position in y (from base frame of robot)
+    '''
     goalSet = ActionClient()
     goalSet.init_node()
     goalSet.init_action_client()
-    goalSet.coordinate_callback(1.0,1.0)
+    
+    try :
+        opts, args = getopt.getopt(argv, "x:y:",[])
+
+    except getopt.GetoptError:
+      print('Unaccepted input: \n \t -x <goal position in x> \n \t -y <goal position in y>')
+      sys.exit(2)
+    
+    x = 0.0
+    y = 0.0
+    
+    if len(args) == 2 :
+        try :
+            x = float(args[0])
+            y = float(args[1])
+        except TypeError('Cannot convert x,y terminal to float') :
+            sys.exit(2)
+
+    for opt , arg in opts :
+        if opt == '-x' :
+            if type(arg) not in [type(1), type(1.1), type('1')] :
+                raise TypeError('x coordinate must be of type float or int')
+            x = float(arg)
+        if opt == '-y' :
+            if type(arg) not in [type(1), type(1.1), type('1')] :
+                raise TypeError('y coordinate must be of type float or int')
+            y = float(arg)
+
+    rospy.loginfo(f'applying translation goal: x = {x}, y = {y}')
+    goalSet.coordinate_callback(x,y)
+
+if __name__ == '__main__' :
+    '''
+    #####  Input Key #####
+    -x : goal position in x (from base frame of robot)
+    -y : goal position in y (from base frame of robot)
+    '''
+    main(sys.argv[1:])
 
 
 
