@@ -47,26 +47,28 @@ def main(argv) :
     -y : goal position in y (from base frame of robot)
     '''
     goalSet = moveActionClient()
-    
-    if len(argv) == 0 :
-        rospy.loginfo('You can enter (x,y) commands in terminal\n \
-            example, \n \t rosrun frontier-exploration moveActionClient -x <goal position in x> -y <goal position in y> \n')
-    try :
-        opts, args = getopt.getopt(argv, "x:y:",[])
 
-    except getopt.GetoptError:
-      rospy.loginfo('Unaccepted input: \n \t -x <goal position in x> \n \t -y <goal position in y>')
-      sys.exit(2)
-    
     x = 0.0
     y = 0.0
+    
 
-    if len(args) == 2 :
+    if len(argv) == 0 :
+        rospy.loginfo('You can enter (x,y) commands in terminal\n \
+            example, \n \t $ rosrun frontier-exploration moveActionClient -x <goal position in x> -y <goal position in y> \n')
+
+    if len(argv) == 2 :
         try :
-            x = float(args[0])
-            y = float(args[1])
+            x = float(argv[0])
+            y = float(argv[1])
+            argv = []
         except TypeError('Cannot convert x,y terminal to float') :
             sys.exit(2)
+
+
+    try :
+        opts, args = getopt.getopt(argv, "x:y:",[])
+    except getopt.GetoptError:
+      rospy.loginfo('Unaccepted input: \n \t -x <goal position in x> \n \t -y <goal position in y>')
 
     for opt , arg in opts :
         if opt == '-x' :
