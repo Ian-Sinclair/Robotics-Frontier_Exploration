@@ -3,9 +3,11 @@
 import rospy
 import actionlib
 import getopt, sys
+import tf2_ros
 from move_base_msgs.msg import MoveBaseAction, MoveBaseGoal
 from threading import Thread
 from geometry_msgs.msg import Pose
+from tf.transformations import quaternion_from_euler, euler_from_quaternion
 
 
 class moveActionClient() :
@@ -20,20 +22,20 @@ class moveActionClient() :
         self.client = actionlib.SimpleActionClient('/move_base', MoveBaseAction)
         self.client.wait_for_server()
     
-    def coordinate_callback(self, x, y) :
-        thread = Thread(target=self.coordinate_callback_thread, args=(x, y))
+    def coordinate_callback(self, x = 0, y = 0, z = 0, w = 1, nx = 0, ny = 0, nz = 1) :
+        thread = Thread(target=self.coordinate_callback_thread, args=(x, y, z, w, nx, ny, nz))
         thread.start()
 
-    def coordinate_callback_thread(self, x, y) :
+    def coordinate_callback_thread(self, x = 0, y = 0, z = 0, w = 1, nx = 0, ny = 0, nz = 1) :
         pose = Pose()
         pose.position.x = x
         pose.position.y = y
-        pose.position.z = 0.0
-        pose.orientation.x = 0.0
-        pose.orientation.y = 0.0
-        pose.orientation.z = 1.0
+        pose.position.z = z
+        pose.orientation.x = nx
+        pose.orientation.y = ny
+        pose.orientation.z = nz
+        pose.orientation.w = w
         goal = MoveBaseGoal()
-        goal.target_pose.pose.orientation.w = 1.0
         goal.target_pose.header.frame_id = 'base_footprint'
         goal.target_pose.pose = pose
         self.client.send_goal(goal)
@@ -81,8 +83,23 @@ def main(argv) :
             y = float(arg)
 
     rospy.loginfo(f'applying translation goal: x = {x}, y = {y}')
+    tfBuffer = tf2_ros.Buffer()
+    listener = tf2_ros.TransformListener(tfBuffer)
+    orientation = (0,0,0)
+    try :
+        trans = tfBuffer.lookup_transform('map', 'base_footprint', rospy.Time())
+        orientation = trans.transform.orientation
+    except :
+        pass
+    goalSet.coordinate_callback(x=x,y=y)
 
-    goalSet.coordinate_callback(x,y)
+    try :
+        trans = tfBuffer.lookup_transform('map', 'base_footprint', rospy.Time())
+    except :
+        pass
+
+    nx,ny,nz = orientation - trans.transform.orientation
+    print(nx,ny,nz)
 
 if __name__ == '__main__' :
     '''
