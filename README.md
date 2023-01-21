@@ -1,4 +1,4 @@
-# COMP-4745-project-2
+# COMP-4510-project-2
 
 ## Table of Contents
 
