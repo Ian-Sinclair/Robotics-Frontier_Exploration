@@ -110,3 +110,13 @@ This concludes the setup for the project.
     $ cd project/catkin_ws
     $ source devel/setup.bash
     ```
+
+
+## Part 2 Notes
+
+- Find frontiers and centroids.
+
+- Find frontiers in the Occupancy Grid, segment them, and identify frontier observation
+points
+
+
