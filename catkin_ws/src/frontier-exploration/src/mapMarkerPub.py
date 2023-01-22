@@ -1,9 +1,11 @@
 #!/usr/bin/env python
 
 import rospy
+import numpy as np
+import util
 from visualization_msgs.msg import Marker
-from util import point
 from geometry_msgs.msg import Pose, PoseArray
+from nav_msgs.msg import OccupancyGrid
 
 
 class RviZ_publisher() :
@@ -19,13 +21,17 @@ class RviZ_publisher() :
         self.marker_pub = rospy.Publisher("/visualization_marker", Marker, queue_size=1)
 
     def init_subscriber(self) :
-        self.point_Sub = rospy.Subscriber('points', PoseArray, self.points_callback)
+        self.point_Sub = rospy.Subscriber('dilatedOccupancyGrid', OccupancyGrid, self.points_callback)
         rospy.spin()
     
     def points_callback(self, data) :
-        points = [point(p.position.x,p.position.y,0) for p in data.poses ]
-        rospy.loginfo(len(points))
-        self.pub_point(points, r = 1)
+        occuGrid = np.fromiter(data.data, int).reshape(384,384)
+        self.publish_obstacle_markers(occuGrid)
+    
+    def publish_obstacle_markers(self,occupancyGrid) :
+        obstacles = util.filter_points(occupancyGrid, target=100)
+        obstacles = util.tf_occuGrid_to_map(obstacles)
+        self.pub_point(obstacles, r=1)
 
 
     def pub_point( self , points, w=1 , nx=0 , ny=0 , nz=0 , r=1.0, g=0.0, b=0.0, alpha=1.0, id=0, namespace='marker' ) :
