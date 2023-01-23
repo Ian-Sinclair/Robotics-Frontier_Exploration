@@ -26,7 +26,7 @@ def dilate( array , mask_size : tuple ) :
                         break
     return Dilated_image
 
-def dilate_subset( array , mask_size , subarray ) :
+def informed_dilate( array , mask_size , subarray ) :
     row_max, col_max = array.shape
     new_array = array.copy()
     mask = [(i,j) for i in range(-mask_size[0] , mask_size[0]) for j in range(-mask_size[1] , mask_size[1])]
@@ -38,7 +38,7 @@ def dilate_subset( array , mask_size , subarray ) :
     return new_array
 
 
-def filter_points(Grid, target=100) :
+def naive_target_filter(Grid, target=100) :
         a,b = Grid.shape
         points = [(c,r,0) for r in range(a) for c in range(b) if Grid[c][r]== target]
         return points
@@ -49,32 +49,29 @@ def tf_occuGrid_to_map( array , width = 384, height = 384, offset = 10, map_widt
     '''
     return [point(((c/width)*map_width) - offset,((r/height)*map_width) - offset,z) for r,c,z in array]
 
-def edge_detection(Grid, dilated_grid, mask_size : tuple = (1,1), filtered_image = None) :
+def edge_detection(Grid, mask_size : tuple = (1,1), filtered_Grid = None) :
     a,b = Grid.shape
     mask = [(i,j) for i in range(-mask_size[0] , mask_size[0]) for j in range(-mask_size[1] , mask_size[1])]
-    if filtered_image == None : filtered_image = np.zeros(Grid.shape,int)
+    if filtered_Grid == None : filtered_Grid = np.zeros(Grid.shape,int)
 
     for i in range(a) :
         for j in range(b) :
             conv = [Grid[i+k[0]][j+k[1]] for k in mask if (0<= (i+k[0]) < a) and (0<= (j+k[1]) < b)]
-            if -1 in conv and 0 in conv and dilated_grid[i][j] != 100 :
-                filtered_image[i][j] = 100
-    return filtered_image
+            if -1 in conv and 0 in conv and Grid[i][j] != 100 :
+                filtered_Grid[i][j] = 100
+    return filtered_Grid
 
 
-def edge_detection_subset(Grid, dilated_grid, filtered_array, subarray , mask_size : tuple = (1,1) ) :
+def informed_edge_detection(Grid, array, mask_size : tuple = (1,1) , filtered_Grid = None) :
     width,height = Grid.shape
     mask = [(i,j) for i in range(-mask_size[0] , mask_size[0]) for j in range(-mask_size[1] , mask_size[1])]
     
-    if len(filtered_array) == 0 : filtered_array = np.zeros(Grid.shape,int)
+    if len(filtered_Grid) == 0 : filtered_Grid = np.zeros(Grid.shape,int)
 
-    for a,b in subarray :
+    for a,b in array :
         conv = [Grid[i+a][j+b] for i,j in mask if (0<= (i+a) < width) and (0<= (b+j) < height)]
-        if -1 in conv and 0 in conv and dilated_grid[a][b] != 100 :
-            filtered_array[a][b] = 100
-    return filtered_array
+        if -1 in conv and 0 in conv and Grid[a][b] != 100 :
+            filtered_Grid[a][b] = 100
+    return filtered_Grid
     
-
-
-
 
