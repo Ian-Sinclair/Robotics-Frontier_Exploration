@@ -120,13 +120,16 @@ def BFS( anchor , grid , array , kernel_size ) :
     while len(queue) > 0 and count < limit :
         count += 1
         anchor = queue.pop()
-        array.remove(anchor)
-
         segment.add(anchor)
 
         successors = [x for x in get_successors( anchor , grid , kernel ) if x not in segment and x not in queue]
 
         queue += successors
+
+        try : 
+            array.remove(anchor)
+        except :
+            continue
 
     return list(segment), array
 
