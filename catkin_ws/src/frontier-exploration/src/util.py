@@ -13,7 +13,7 @@ class point() :
 def dilate( array , mask_size : tuple ) :
     Dilated_image = array.copy()
 
-    mask = [(i,j) for i in range(-mask_size[0] , mask_size[0]) for j in range(-mask_size[1] , mask_size[1])]
+    mask = [(i,j) for i in range(-mask_size[0] , mask_size[0]+1) for j in range(-mask_size[1] , mask_size[1]+1)]
 
     a,b = array.shape
     for i in range(a) :
@@ -29,7 +29,7 @@ def dilate( array , mask_size : tuple ) :
 def informed_dilate( grid , mask_size , array ) :
     row_max, col_max = grid.shape
     new_grid = grid.copy()
-    mask = [(i,j) for i in range(-mask_size[0] , mask_size[0]) for j in range(-mask_size[1] , mask_size[1]+1)]
+    mask = [(i,j) for i in range(-mask_size[0] , mask_size[0]+1) for j in range(-mask_size[1] , mask_size[1]+1)]
     new_array = []
     
 

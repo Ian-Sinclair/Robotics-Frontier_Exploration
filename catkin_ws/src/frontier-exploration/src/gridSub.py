@@ -9,7 +9,7 @@ from geometry_msgs.msg import Pose, PoseArray
 class occupancyGridSubscriber() :
     cache = {'Occupancy' : None , 
              'frontierGrid' : [],
-             'obstacle_record' : {}}
+             'obstacle_record' : set([])}
     def __init__( self ) :
         self.init_node()
         self.init_Subscriber()
@@ -21,8 +21,6 @@ class occupancyGridSubscriber() :
     def init_Subscriber(self) :
         rospy.Subscriber("map", OccupancyGrid, self.callback)
         rospy.spin()
-
-        
 
     def callback(self, data) :
         '''
@@ -38,7 +36,7 @@ class occupancyGridSubscriber() :
             if data.data[i] != occupancyGridSubscriber.cache['Occupancy'][i] :
                 step_diff += [data.data[i]]
                 if data.data[i] == 100 :
-                    occupancyGridSubscriber.cache['obstacle_record'].add([i])
+                    occupancyGridSubscriber.cache['obstacle_record'].add(i)
 
         if len(step_diff) > 0 :
             rospy.loginfo('Updating cache')
@@ -46,15 +44,28 @@ class occupancyGridSubscriber() :
 
             occupancyGrid = np.fromiter(data.data, int).reshape(384,384)  # for big 1D array np.fromiter is faster than np.asarray
 
-            obstacles = [map(lambda x: (int(x/384),x%384 ), occupancyGridSubscriber.cache['obstacle_record'])]
+            obstacles = [*map(lambda x: (int(x/384),x%384 ), occupancyGridSubscriber.cache['obstacle_record'])]
 
-            ExpandedOccupancyGrid = util.informed_dilate(occupancyGrid, (3,3), obstacles)
+            ExpandedOccupancyGrid, _ = util.informed_dilate(occupancyGrid, (3,3), obstacles)
             
             #  Finding frontiers
-            frontiersGrid = util.edge_detection(ExpandedOccupancyGrid)
+            frontiersGrid, frontiersPoints = util.edge_detection(ExpandedOccupancyGrid)
+
+            #  Remove outlier points.
+            #frontiersGrid, frontiersPoints = util.informed_erode(frontiersGrid,(3,3),frontiersPoints,ExpandedOccupancyGrid, tr=5)
+
+            #  Expand frontiers.
+            #frontiersGrid, frontiersPoints = util.informed_dilate(frontiersGrid,(2,2), frontiersPoints)
+
+            frontiers = util.connection_component_analysis(frontiersGrid , frontiersPoints , (1,1))
+            print(len(frontiers))
+
             frontiersGrid = frontiersGrid.flatten()
 
             #  Need to publish frontiers occupancy grid.
+            pub = rospy.Publisher('/frontiers_map' , OccupancyGrid, queue_size=1)
+            pub.publish(data.header,data.info,frontiersGrid)
+            rospy.loginfo('Publishing')
 
 
         else : rospy.loginfo('Callback received but already cached')        
