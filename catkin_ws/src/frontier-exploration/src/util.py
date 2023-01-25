@@ -40,22 +40,21 @@ def informed_dilate( grid , mask_size , array ) :
                 new_array += [(a+i,b+j)]
     return new_grid, new_array
 
-def informed_erode( Grid , mask_size, array, key = None, tr = 3 ) :
+def informed_erode( Grid , array,mask_size, key = None, tr = 3, mask = None ) :
     row_max, col_max = Grid.shape
     new_grid = Grid.copy()
     if key is None : key = Grid.copy()
     new_points = set(array)
-
-    mask = [(i,j) for i in range(-mask_size[0] , mask_size[0]+1) for j in range(-mask_size[1] , mask_size[1]+1)]
+    if mask == None :
+        mask = [(i,j) for i in range(-mask_size[0] , mask_size[0]+1) for j in range(-mask_size[1] , mask_size[1]+1)]
     for a,b in array :
-        for i,j in mask :
-            conv = [key[i+a][j+b] for i,j in mask if (0<= (i+a) < row_max) and (0<= (b+j) < col_max) and key[i+a][j+b] != 100]
-            if sum(conv) > -tr :
-                new_grid[a][b] = 0
-                try : 
-                    new_points.remove((i,j))
-                except :
-                    continue
+        conv = [key[i+a][j+b] for i,j in mask if (0<= (i+a) < row_max) and (0<= (b+j) < col_max) and key[i+a][j+b] != 100]
+        if sum(conv) > -tr :
+            new_grid[a][b] = 0
+            try : 
+                new_points.remove((a,b))
+            except :
+                continue
     return new_grid, list(new_points)
 
 
@@ -70,7 +69,7 @@ def tf_occuGrid_to_map( array , width = 384, height = 384, offset = 10, map_widt
     '''
         FIXED MAP VALUES
     '''
-    return [point(((c/width)*map_width) - offset,((r/height)*map_width) - offset,z) for r,c,z in array]
+    return [point(((c/width)*map_width) - offset , ((r/height)*map_width) - offset , 0) for r,c in array]
 
 def edge_detection(Grid, mask_size : tuple = (1,1), filtered_Grid = None) :
     a,b = Grid.shape
@@ -81,7 +80,7 @@ def edge_detection(Grid, mask_size : tuple = (1,1), filtered_Grid = None) :
     for i in range(a) :
         for j in range(b) :
             conv = [Grid[i+k[0]][j+k[1]] for k in mask if (0<= (i+k[0]) < a) and (0<= (j+k[1]) < b)]
-            if -1 in conv and 0 in conv and Grid[i][j] != 100 :
+            if -1 in conv and 0 in conv and Grid[i][j] != 100 and Grid[i][j] == -1:
                 filtered_Grid[i][j] = 100
                 edges += [(i,j)]
     return filtered_Grid, edges
@@ -104,34 +103,31 @@ def informed_edge_detection(Grid, array, mask_size : tuple = (1,1) , filtered_Gr
 def get_successors( center , grid , kernel ) :
     x,y = center
     width,height = grid.shape
-    return [(x+a,y+b) for a,b in kernel if (0<= (x+a) < width) and (0<= (y+b) < height) and grid[x+a][y+b] == 100] # add edge case
+    return [(x+a,y+b) for a,b in kernel if (0<= (x+a) < width) and (0<= (y+b) < height) and grid[x+a][y+b] == 100]
 
 
 def BFS( anchor , grid , array , kernel_size ) :
     kernel = [(i,j) for i in range(-kernel_size[0] , kernel_size[0]+1) for j in range(-kernel_size[1] , kernel_size[1]+1)]
-    kernel.remove((0,0))
+    #kernel.remove((0,0))
 
     segment = {anchor}
 
     queue = get_successors( anchor , grid, kernel )
-    limit = len(array)
-    count = 0
 
-    while len(queue) > 0 and count < limit :
-        count += 1
+    while len(queue) > 0 :
         anchor = queue.pop()
         segment.add(anchor)
-
+        a,b = anchor
+        grid[a][b] = 0
         successors = [x for x in get_successors( anchor , grid , kernel ) if x not in segment and x not in queue]
-
-        queue += successors
+        queue = successors + queue
 
         try : 
             array.remove(anchor)
         except :
             continue
 
-    return list(segment), array
+    return list(segment), array, grid
 
 
 def connection_component_analysis( grid, array, kernel_size ) :
@@ -147,18 +143,19 @@ def connection_component_analysis( grid, array, kernel_size ) :
     '''
     novel_points = array.copy()
     frontiers = []
-    print(type(novel_points))
-    count = 0
-    limit = len(array)
+    updated_grid = grid.copy()
 
-    while len(novel_points) > 0 and count < limit+100 :
-        count += 1
+    while len(novel_points) > 0 :
         anchor = novel_points.pop()
-        # run BFS
-        segment , novel_points = BFS(anchor , grid , novel_points , kernel_size)
-        frontiers += [segment]
+        x,y = anchor
+        if updated_grid[x][y] == 100 :
+            segment , novel_points, updated_grid = BFS(anchor , updated_grid , novel_points , kernel_size)
+            frontiers += [segment]
 
     return frontiers
 
 
+
+def get_centroid(points_array) :
+    return point(sum([a.x for a in points_array])/len(points_array), sum([b.y for b in points_array])/len(points_array),0)
 
