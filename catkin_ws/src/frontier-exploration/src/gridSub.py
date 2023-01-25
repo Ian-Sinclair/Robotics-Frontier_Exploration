@@ -54,9 +54,6 @@ class occupancyGridSubscriber() :
             frontiersGrid, frontiersPoints = util.edge_detection(ExpandedOccupancyGrid)
 
             #  Remove outlier points.
-            c = 2
-            mask = [(0,c),(0,-c),(c,0),(-c,0)]
-            #frontiersGrid, _ = util.informed_erode(frontiersGrid,frontiersPoints,(3,3),ExpandedOccupancyGrid, tr=1,mask=mask)
             frontiersGrid, frontiersPoints = util.informed_erode(frontiersGrid,frontiersPoints,(2,2),ExpandedOccupancyGrid, tr=15)
 
             #  Expand frontiers.
@@ -75,25 +72,47 @@ class occupancyGridSubscriber() :
             #  make markers
             map_frontiers = [util.tf_occuGrid_to_map(f) for f in frontiers]
 
-            publish_deletaALLMarkers()
+            publish_deletaALLMarkers(namespace='frontier_points')
+            publish_deletaALLMarkers(namespace='centroids')
 
             maps = MarkerArray()
 
-            maps.markers = [convert_marker(f, r=random.random(),g=random.random(),b=random.random(), id=i) for i,f in enumerate(map_frontiers)]
+            maps.markers = [
+                            convert_marker(f, 
+                                            r=random.random() ,
+                                            g=random.random() ,
+                                            b=random.random() , 
+                                            id=i ,
+                                            namespace='frontier_points'
+                                            ) 
+                                            for i,f in enumerate(map_frontiers)
+                                            ]
 
             #  get centroids
-            centriods = [util.get_centroid(f) for f in map_frontiers]
-            print([c.x for c in centriods])
+            centroids = [util.get_centroid(f) for f in map_frontiers]
 
             centroid_RviZ = MarkerArray()
 
-            centroid_RviZ.markers = [convert_marker(points=[f],r=random.random(),g=random.random(),b=random.random(), id=i+len(maps.markers), sx=0.6,sy=0.6,sz=0.6, type=7) for i,f in enumerate(centriods)]
+            centroid_RviZ.markers = [
+                                    convert_marker(points=[f],
+                                                    r=0,
+                                                    g=1,
+                                                    b=0, 
+                                                    id=i+len(maps.markers), 
+                                                    sx=0.25,
+                                                    sy=0.25,
+                                                    sz=0.25, 
+                                                    type=7,
+                                                    namespace='centroids'
+                                                    ) 
+                                                    for i,f in enumerate(centroids)
+                                                    ]
 
-            maps.markers = maps.markers + centroid_RviZ.markers
+            maps.markers = centroid_RviZ.markers + maps.markers
 
 
             frontiersPub = rospy.Publisher("/visualization_marker_array", MarkerArray, queue_size=1)
-            frontiersPub.publish(centroid_RviZ)
+            frontiersPub.publish(maps)
 
 
         else : rospy.loginfo('Callback received but already cached')        
@@ -114,7 +133,21 @@ def publish_deletaALLMarkers(topic = '/visualization_marker_array', namespace = 
 
 
 
-def convert_marker(points = None, w=1 , nx=0 , ny=0 , nz=0 , r=1.0, g=0.0, b=0.0, alpha=1.0, id=0, namespace='marker', type = 8, sx = 0.03, sy = 0.03, sz = 0.03 ) :
+def convert_marker(points = None, 
+                    w=1 , 
+                    nx=0 , 
+                    ny=0 , 
+                    nz=0 , 
+                    r=1.0, 
+                    g=0.0, 
+                    b=0.0, 
+                    alpha=1.0, 
+                    id=0, 
+                    namespace='marker', 
+                    type = 8, 
+                    sx = 0.03, 
+                    sy = 0.03, 
+                    sz = 0.03 ) :
     marker = Marker()
     marker.header.frame_id = "map"
     marker.header.stamp = rospy.Time.now()
