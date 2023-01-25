@@ -7,6 +7,58 @@ import random
 from nav_msgs.msg import OccupancyGrid
 from visualization_msgs.msg import Marker, MarkerArray
 
+'''
+    Class to subscribe to the map occupancy grid and detect frontier clusters
+    then publish the location and centroid of each frontier cluster.
+
+    - A frontier is an area where known unoccupied space meets unknown space.
+    - The goal of this script is to identify distinct frontier regions that
+        can be used as goal for the robot to explore its environment.
+    
+    - Procedure :
+        1) Subscribes to /map topic and takes an occupancy grid object
+                    - when something is published on the /map topic is calls the
+                        'callback' method in this class.
+        2) Detects the location of known obstacles and increases their
+                    size based on the cspace of the robot (discovered a priori).
+                    - This is done to prevent the algorithm from finding frontiers that
+                        are to close to walls for the robot to explore.
+                    - Increasing the wall size is done with a standard morphological algorithm, dilation. (in util.py) 
+        3) Detect frontier regions with edge detection
+                    - This is done with standard edge detection sorting
+                        where an adjustable kernel is convoluted against 
+                        the occupancy grid to detect locations where known
+                        unoccupied tiles (0) meets known space (-1).
+                        Walls are excluded as edges.
+        4) Remove false regions and simplify frontiers topology
+                    - the edge detection method may mis-classify sensor errors as a new frontier.
+                        This is a case where a small unknown region is completely surrounded by 
+                        known unoccupied space. And seems to be most commonly caused by gaps in the
+                        lidar sensors on the robot. (So something should be visible but isn't, and will
+                        likely become visible on the next time step.)
+                - To remove these regions, each frontier is eroded based on the number of unknown space
+                        that surrounds it. (If a region is next to a large block of unknown space it will not be
+                        eroded. However, if a frontier is surrounded by known space, the size of its topology will 
+                        be reduced and in the event of a false frontier, be eroded into nothingness.)
+                - After eroding, all remaining frontiers are dilated, (or have their area increased) to both fill holes
+                        and join frontier candidates that are extremely close but not connected. This is done to prevent
+                        over classification of frontier regions during connected component analysis.
+        5 ) Frontier segmentation
+                    - Here the list of all candidate frontier points are segmented into distinct clusters.
+                    - Features of a good segmentation can include, a continuous topological region,
+                        (or at least semi-continuous with small jumps.) distance from walls or in general
+                        are reachable by the robot.
+                    - Here connected component analysis is used to segment each frontier as semi-continuous 
+                        topological regions. 
+                            By semi-continuous we mean that the region is either fully connected or any gaps between 
+                            components are 'small'.
+                        This is done by running breadth first search (BFS) sequentially on each frontier point
+                        candidate and connecting the visited points.
+                        Successors in the BFS for each point are found by the neighbors of that point on a grid.
+                        Neighbors are determined by overlaying an (n X n) kernel. 
+'''
+
+
 class occupancyGridSubscriber() :
     cache = {'Occupancy' : None , 
              'frontierGrid' : [],
@@ -25,58 +77,73 @@ class occupancyGridSubscriber() :
 
     def callback(self, data) :
         '''
-            INFO:
+            callback function:
+                Runs every time something if published to /map topic.
+                Data is an occupancy grid.
+        '''
+        '''
+            INFO: occupancy grid :: data
                 --> resolution = 0.05   width = 384     height = 384
                 --> start x: -10.0,     y: -10.0,   z:0.0
         '''
+        # initializes the cache to compare callback calls between times steps.
         if occupancyGridSubscriber.cache['Occupancy'] == None :
             occupancyGridSubscriber.cache['Occupancy'] = [0]*len(data.data)
 
+
+        # Determines if the occupancy grid changed sense the last time step.
         step_diff = []
         for i in range(len(data.data)) :
             if data.data[i] != occupancyGridSubscriber.cache['Occupancy'][i] :
                 step_diff += [data.data[i]]
-                if data.data[i] == 100 :
+                if data.data[i] == 100 :  # might as well collect the location of obstacles too.
                     occupancyGridSubscriber.cache['obstacle_record'].add(i)
 
         if len(step_diff) > 0 :
+            # update cache with new occupancy grid
             rospy.loginfo('Updating cache')
             occupancyGridSubscriber.cache['Occupancy'] = data.data
 
-            occupancyGrid = np.fromiter(data.data, int).reshape(384,384)  # for big 1D array np.fromiter is faster than np.asarray
-
+            occupancyGrid = np.fromiter(data.data, int).reshape(384,384)  #  converts occupancy grid to grid structure/ numpy array
             obstacles = [*map(lambda x: (int(x/384),x%384 ), occupancyGridSubscriber.cache['obstacle_record'])]
 
+            #  Expands obstacles using approximate cspace of the robot
             ExpandedOccupancyGrid, _ = util.informed_dilate(occupancyGrid, (3,3), obstacles)
             
-            #  Finding frontiers
+            #  Finding Frontier Candidates
             frontiersGrid, frontiersPoints = util.edge_detection(ExpandedOccupancyGrid)
 
-            #  Remove outlier points.
+            #  Remove outlier points and false frontiers.
             frontiersGrid, frontiersPoints = util.informed_erode(frontiersGrid,frontiersPoints,(2,2),ExpandedOccupancyGrid, tr=15)
 
             #  Expand frontiers.
             frontiersGrid, _ = util.informed_dilate(frontiersGrid,(1,1), frontiersPoints)
 
+            #  Segment frontiers.      frontiers : list[list[]]
             frontiers = util.connection_component_analysis(frontiersGrid , frontiersPoints , (2,2))
-            print(len(frontiers))
+            rospy.loginfo(f'{len(frontiers)} unique frontiers detected.')
+
+                        
+            #  Transforms frontier coordinates from occupancy grid frame to map frame.
+            map_frontiers = [util.tf_occuGrid_to_map(f) for f in frontiers]
+
+            #  Gets centroid coordinates for each frontier cluster
+            centroids = [util.get_centroid(f) for f in map_frontiers]
 
             frontiersGrid = frontiersGrid.flatten()
 
-            #  Need to publish frontiers occupancy grid.
+            #  Publishes occupancy grid of non-segmented frontier points.
             pub = rospy.Publisher('/frontiers_map' , OccupancyGrid, queue_size=1)
-            pub.publish(data.header,data.info,frontiersGrid)
+            pub.publish( data.header, data.info, frontiersGrid )
             rospy.loginfo('Publishing')
-
-            #  make markers
-            map_frontiers = [util.tf_occuGrid_to_map(f) for f in frontiers]
 
             publish_deletaALLMarkers(namespace='frontier_points')
             publish_deletaALLMarkers(namespace='centroids')
 
-            maps = MarkerArray()
+            #  Creates marker objects for frontier points.
+            frontier_markerArray = MarkerArray()
 
-            maps.markers = [
+            frontier_markerArray.markers = [
                             convert_marker(f, 
                                             r=random.random() ,
                                             g=random.random() ,
@@ -87,9 +154,6 @@ class occupancyGridSubscriber() :
                                             for i,f in enumerate(map_frontiers)
                                             ]
 
-            #  get centroids
-            centroids = [util.get_centroid(f) for f in map_frontiers]
-
             centroid_RviZ = MarkerArray()
 
             centroid_RviZ.markers = [
@@ -97,7 +161,7 @@ class occupancyGridSubscriber() :
                                                     r=0,
                                                     g=1,
                                                     b=0, 
-                                                    id=i+len(maps.markers), 
+                                                    id=i+len(frontier_markerArray.markers), 
                                                     sx=0.25,
                                                     sy=0.25,
                                                     sz=0.25, 
@@ -107,18 +171,20 @@ class occupancyGridSubscriber() :
                                                     for i,f in enumerate(centroids)
                                                     ]
 
-            maps.markers = centroid_RviZ.markers + maps.markers
+            frontier_markerArray.markers = centroid_RviZ.markers + frontier_markerArray.markers
 
 
             frontiersPub = rospy.Publisher("/visualization_marker_array", MarkerArray, queue_size=1)
-            frontiersPub.publish(maps)
+            frontiersPub.publish(frontier_markerArray)
 
 
         else : rospy.loginfo('Callback received but already cached')        
 
 
 
-
+'''
+    Method to delete all markers on a topic and namespace pair.
+'''
 def publish_deletaALLMarkers(topic = '/visualization_marker_array', namespace = 'marker') :
     marker_array = MarkerArray()
     marker = Marker()
@@ -131,7 +197,10 @@ def publish_deletaALLMarkers(topic = '/visualization_marker_array', namespace = 
 
 
 
-
+'''
+    args: marker config details
+    output: marker object
+'''
 def convert_marker(points = None, 
                     w=1 , 
                     nx=0 , 
@@ -189,6 +258,6 @@ def convert_marker(points = None,
 
 if __name__ == '__main__' :
     grid = occupancyGridSubscriber()
-    #publish_deletaALLMarkers()
+
 
 
