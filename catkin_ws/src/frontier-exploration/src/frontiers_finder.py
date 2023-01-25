@@ -6,7 +6,6 @@ import util
 import random
 from nav_msgs.msg import OccupancyGrid
 from visualization_msgs.msg import Marker, MarkerArray
-from geometry_msgs.msg import Pose, PoseArray
 
 class occupancyGridSubscriber() :
     cache = {'Occupancy' : None , 
