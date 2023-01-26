@@ -17,45 +17,49 @@ from visualization_msgs.msg import Marker, MarkerArray
     
     - Procedure :
         1) Subscribes to /map topic and takes an occupancy grid object
-                    - when something is published on the /map topic is calls the
-                        'callback' method in this class.
+                        - when something is published on the /map topic is calls the
+                            'callback' method in this class.
+
         2) Detects the location of known obstacles and increases their
-                    size based on the cspace of the robot (discovered a priori).
-                    - This is done to prevent the algorithm from finding frontiers that
-                        are to close to walls for the robot to explore.
-                    - Increasing the wall size is done with a standard morphological algorithm, dilation. (in util.py) 
+            size based on the cspace of the robot (discovered a priori).
+                        - This is done to prevent the algorithm from finding frontiers that
+                            are to close to walls for the robot to explore.
+                        - Increasing the wall size is done with a standard morphological algorithm, dilation. (in util.py) 
+
         3) Detect frontier regions with edge detection
-                    - This is done with standard edge detection sorting
-                        where an adjustable kernel is convoluted against 
-                        the occupancy grid to detect locations where known
-                        unoccupied tiles (0) meets known space (-1).
-                        Walls are excluded as edges.
+                        - This is done with standard edge detection filtering
+                            where an adjustable kernel is convoluted against 
+                            the occupancy grid to detect locations where known
+                            unoccupied tiles (0) meets known space (-1).
+                            Walls are excluded as edges.
+
         4) Remove false regions and simplify frontiers topology
-                    - the edge detection method may mis-classify sensor errors as a new frontier.
-                        This is a case where a small unknown region is completely surrounded by 
-                        known unoccupied space. And seems to be most commonly caused by gaps in the
-                        lidar sensors on the robot. (So something should be visible but isn't, and will
-                        likely become visible on the next time step.)
-                - To remove these regions, each frontier is eroded based on the number of unknown space
-                        that surrounds it. (If a region is next to a large block of unknown space it will not be
-                        eroded. However, if a frontier is surrounded by known space, the size of its topology will 
-                        be reduced and in the event of a false frontier, be eroded into nothingness.)
-                - After eroding, all remaining frontiers are dilated, (or have their area increased) to both fill holes
-                        and join frontier candidates that are extremely close but not connected. This is done to prevent
-                        over classification of frontier regions during connected component analysis.
+                        - the edge detection method may mis-classify sensor errors as a new frontier.
+                            This is a case where a small unknown region is completely surrounded by 
+                            known unoccupied space. And seems to be most commonly caused by gaps in the
+                            lidar sensors on the robot. (So something should be visible but isn't, and will
+                            likely become visible on the next time step.)
+                        - To remove these regions, each frontier is eroded based on the amount of known space
+                                that surrounds it. (If a region is next to a large block of unknown space it will not be
+                                eroded. However, if a frontier is surrounded by known space, the size of its topology will 
+                                be reduced and in the event of a false frontier, be eroded into nothingness.)
+                        - After eroding, all remaining frontiers are dilated, (or have their area increased) to both fill holes
+                                and join frontier candidates that are extremely close but not connected. This is done to prevent
+                                over classification of frontier regions during connected component analysis.
+
         5 ) Frontier segmentation
-                    - Here the list of all candidate frontier points are segmented into distinct clusters.
-                    - Features of a good segmentation can include, a continuous topological region,
-                        (or at least semi-continuous with small jumps.) distance from walls or in general
-                        are reachable by the robot.
-                    - Here connected component analysis is used to segment each frontier as semi-continuous 
-                        topological regions. 
-                            By semi-continuous we mean that the region is either fully connected or any gaps between 
-                            components are 'small'.
-                        This is done by running breadth first search (BFS) sequentially on each frontier point
-                        candidate and connecting the visited points.
-                        Successors in the BFS for each point are found by the neighbors of that point on a grid.
-                        Neighbors are determined by overlaying an (n X n) kernel. 
+                        - Here the list of all candidate frontier points are segmented into distinct clusters.
+                        - Features of a good segmentation can include, a continuous topological region,
+                            (or at least semi-continuous with small jumps.) distance from walls or in general
+                            are reachable by the robot.
+                        - Here connected component analysis is used to segment each frontier as semi-continuous 
+                            topological regions. 
+                                By semi-continuous we mean that the region is either fully connected or any gaps between 
+                                components are 'small'.
+                            This is done by running breadth first search (BFS) sequentially on each frontier point
+                            candidate and connecting the visited points.
+                            Successors in the BFS for each point are found by the neighbors of that point on a grid.
+                            Neighbors are determined by overlaying an (n X n) kernel. 
 '''
 
 
@@ -78,7 +82,7 @@ class occupancyGridSubscriber() :
     def callback(self, data) :
         '''
             callback function:
-                Runs every time something if published to /map topic.
+                Runs every time something is published to /map topic.
                 Data is an occupancy grid.
         '''
         '''
@@ -86,12 +90,12 @@ class occupancyGridSubscriber() :
                 --> resolution = 0.05   width = 384     height = 384
                 --> start x: -10.0,     y: -10.0,   z:0.0
         '''
-        # initializes the cache to compare callback calls between times steps.
+        #  initializes the cache to compare callback calls between times steps. (1st time step only)
         if occupancyGridSubscriber.cache['Occupancy'] == None :
             occupancyGridSubscriber.cache['Occupancy'] = [0]*len(data.data)
 
 
-        # Determines if the occupancy grid changed sense the last time step.
+        #  Determines if the occupancy grid changed sense the last time step.
         step_diff = []
         for i in range(len(data.data)) :
             if data.data[i] != occupancyGridSubscriber.cache['Occupancy'][i] :
@@ -100,7 +104,7 @@ class occupancyGridSubscriber() :
                     occupancyGridSubscriber.cache['obstacle_record'].add(i)
 
         if len(step_diff) > 0 :
-            # update cache with new occupancy grid
+            #  update cache with new occupancy grid
             rospy.loginfo('Updating cache')
             occupancyGridSubscriber.cache['Occupancy'] = data.data
 
