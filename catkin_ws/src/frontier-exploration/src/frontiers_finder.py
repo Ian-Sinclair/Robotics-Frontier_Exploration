@@ -108,56 +108,66 @@ class occupancyGridSubscriber() :
             obstacles = [*map(lambda x: (int(x/384),x%384 ), occupancyGridSubscriber.cache['obstacle_record'])]
 
             #  Expands obstacles using approximate cspace of the robot
-            ExpandedOccupancyGrid, _ = util.informed_dilate(occupancyGrid, (3,3), obstacles)
+            ExpandedOccupancyGrid, _ = util.informed_dilate( grid = occupancyGrid , 
+                                                             mask_size = (3,3) , 
+                                                             array = obstacles )
             
             #  Finding Frontier Candidates
-            frontiersGrid, frontiersPoints = util.edge_detection(ExpandedOccupancyGrid)
+            frontiersGrid, frontiersPoints = util.edge_detection( Grid = ExpandedOccupancyGrid )
 
             #  Remove outlier points and false frontiers.
-            frontiersGrid, frontiersPoints = util.informed_erode(frontiersGrid,frontiersPoints,(2,2),ExpandedOccupancyGrid, tr=15)
+            frontiersGrid, frontiersPoints = util.informed_erode( Grid = frontiersGrid, 
+                                                                  array = frontiersPoints, 
+                                                                  mask = (2,2), 
+                                                                  key = ExpandedOccupancyGrid, 
+                                                                  tr=15 )
 
             #  Expand frontiers.
-            frontiersGrid, _ = util.informed_dilate(frontiersGrid,(1,1), frontiersPoints)
+            frontiersGrid, _ = util.informed_dilate( grid = frontiersGrid, 
+                                                     mask_size = (1,1) , 
+                                                     array = frontiersPoints )
 
             #  Segment frontiers.      frontiers : list[list[]]
-            frontiers = util.connection_component_analysis(frontiersGrid , frontiersPoints , (2,2))
-            rospy.loginfo(f'{len(frontiers)} unique frontiers detected.')
+            frontiers = util.connection_component_analysis( grid = frontiersGrid , 
+                                                            array = frontiersPoints , 
+                                                            kernel_size = (2,2) )
+            rospy.loginfo(f'Number of distinct frontiers detected. {len(frontiers)}')
 
                         
             #  Transforms frontier coordinates from occupancy grid frame to map frame.
-            map_frontiers = [util.tf_occuGrid_to_map(f) for f in frontiers]
+            map_frontiers = [ util.tf_occuGrid_to_map( f ) for f in frontiers ]
 
             #  Gets centroid coordinates for each frontier cluster
-            centroids = [util.get_centroid(f) for f in map_frontiers]
+            centroids = [ util.get_centroid( f ) for f in map_frontiers ]  #  returns a list of 'Point' types
 
             frontiersGrid = frontiersGrid.flatten()
 
             #  Publishes occupancy grid of non-segmented frontier points.
-            pub = rospy.Publisher('/frontiers_map' , OccupancyGrid, queue_size=1)
-            pub.publish( data.header, data.info, frontiersGrid )
-            rospy.loginfo('Publishing')
+            pub = rospy.Publisher( '/frontiers_map' , OccupancyGrid , queue_size=1 )
+            pub.publish( data.header, data.info , frontiersGrid )
+            rospy.loginfo( 'Publishing' )
 
-            publish_deletaALLMarkers(namespace='frontier_points')
-            publish_deletaALLMarkers(namespace='centroids')
+            #  Deletes all markers on a namespace
+            publish_deletaALLMarkers( namespace='frontier_points' )
+            publish_deletaALLMarkers( namespace='centroids' )
 
             #  Creates marker objects for frontier points.
             frontier_markerArray = MarkerArray()
 
             frontier_markerArray.markers = [
-                            convert_marker(f, 
-                                            r=random.random() ,
-                                            g=random.random() ,
-                                            b=random.random() , 
-                                            id=i ,
-                                            namespace='frontier_points'
-                                            ) 
-                                            for i,f in enumerate(map_frontiers)
-                                            ]
+                                            convert_marker( f, 
+                                                            r=random.random() ,
+                                                            g=random.random() ,
+                                                            b=random.random() , 
+                                                            id=i ,
+                                                            namespace='frontier_points' ) 
+                                                            for i,f in enumerate(map_frontiers)
+                                                            ]
 
             centroid_RviZ = MarkerArray()
 
             centroid_RviZ.markers = [
-                                    convert_marker(points=[f],
+                                    convert_marker( points=[f],
                                                     r=0,
                                                     g=1,
                                                     b=0, 
@@ -166,19 +176,18 @@ class occupancyGridSubscriber() :
                                                     sy=0.25,
                                                     sz=0.25, 
                                                     type=7,
-                                                    namespace='centroids'
-                                                    ) 
+                                                    namespace='centroids' ) 
                                                     for i,f in enumerate(centroids)
                                                     ]
 
             frontier_markerArray.markers = centroid_RviZ.markers + frontier_markerArray.markers
 
 
-            frontiersPub = rospy.Publisher("/visualization_marker_array", MarkerArray, queue_size=1)
-            frontiersPub.publish(frontier_markerArray)
+            frontiersPub = rospy.Publisher( "/visualization_marker_array" , MarkerArray, queue_size=1 )
+            frontiersPub.publish( frontier_markerArray )
 
 
-        else : rospy.loginfo('Callback received but already cached')        
+        else : rospy.loginfo( 'Callback received but already cached' )        
 
 
 
@@ -191,9 +200,9 @@ def publish_deletaALLMarkers(topic = '/visualization_marker_array', namespace = 
     marker.id = 0
     marker.ns = namespace
     marker.action = Marker.DELETEALL
-    marker_array.markers = [marker]
-    pub = rospy.Publisher("/visualization_marker_array", MarkerArray, queue_size=1)
-    pub.publish(marker_array)
+    marker_array.markers = [ marker ]
+    pub = rospy.Publisher( topic , MarkerArray , queue_size=1 )
+    pub.publish( marker_array )
 
 
 
