@@ -17,6 +17,7 @@
 - RvizProjectTwoConfig.rviz
     - setup config file for RviZ, includes robot camera and global/local path markers.
 - frontiers_finder.py
+    - Finds all frontier clusters and their centroids.
     - Subscribes to /map to take an occupancy grid and locate candidates for frontiers (locations where unoccupied known space meets unknown space).
     - Publishes an occupancy map showing the location of each frontier
     - Publishes color coordinated points to display the distinct clusters of segmented frontiers and their centroids. 
