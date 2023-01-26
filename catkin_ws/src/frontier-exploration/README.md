@@ -1,4 +1,4 @@
-# COMP-4745-project-2
+# COMP-4510-project-2
 
 ## Table of Contents
 
@@ -16,8 +16,60 @@
     - Translation parameters (goals) are entered in the terminal, see setup files tutorial.
 - RvizProjectTwoConfig.rviz
     - setup config file for RviZ, includes robot camera and global/local path markers.
+- frontiers_finder.py
+    - Subscribes to /map to take an occupancy grid and locate candidates for frontiers (locations where unoccupied known space meets unknown space).
+    - Publishes an occupancy map showing the location of each frontier
+    - Publishes color coordinated points to display the distinct clusters of segmented frontiers and their centroids. 
+- util.py
+    - utility function for frontiers_finder.py contains morphological functions for dilation, erosion and line detection on images (occupancy grids)
+    - contains connected component analysis algorithms to detect continuous or semi-continuos regions to binary occupancy grids.
 - Video of setup files at
 [![Watch the video]](https://www.youtube.com/watch?v=dVd2kIACvE8)
+- Video of frontier location algorithm (part 2) here 
+[![Watch the video for part 2]](https://youtu.be/aaL37uBaii4)
+
+## Instructions for running part 2
+
+This section covers how to display the segmented frontiers in the RviZ simulation.  
+First run the setup files, each in a new terminal
+```console
+$ roslaunch turtlebot3_gazebo turtlebot3_stage_4.launch
+$ roslaunch turtlebot3_slam turtlebot3_slam.launch slam_methods:=gmapping
+```
+Then run the package launch file (you may or may not need to resource the terminal.)
+```console
+$ cd catkin_ws
+$ source devel/setup.bash
+$ roslaunch frontier-exploration turtlebot3_navigation.launch
+```
+This should open a Gazebo and RviZ window.  
+It is important that the RviZ window config loads correctly,  
+the displays tab should contain,
+
+- Map/local path/ global path from the start up files section (PART 1)
+- frontiers_map
+    - Subscribed to /frontiers_map
+    - Displays the occupancy grid for the group of all frontiers
+- MarkerArray
+    - Subscribed to /visualization_marker_array
+    - Displays color coordinated dotes representing distinct clusters of frontiers and their centroids. 
+If the RviZ config does not load properly, try opening the config directly from,  
+```console
+frontier-exploration/RvizProkectTwoConfig.rviz
+```
+
+Next, run the frontiers identification script
+```console
+$ rosrun frontier-exploration frontiers_finder.py
+```
+(you may need to resource the terminal)  
+This will automatically detect and segment the frontiers currently visible by the the robot.  
+We can watch the frontiers update by giving the robot a movement command.
+```console
+$ rosrun frontier-exploration moveActionClient.py -x -1 -y 1
+```
+You can also input goals in the RviZ window with the 2D Nav Goal button on the top panel.
+
 
 ## Running setup files
 
@@ -82,6 +134,50 @@ $ rosrun frontier-exploration moveActionClient.py -1 -1
 ```
 This concludes the setup for the project.
 
+
+## PART 2 running frontiers finding algorithm
+This section covers how to display the segmented frontiers in the RviZ simulation.  
+First run the setup files, each in a new terminal
+```console
+$ roslaunch turtlebot3_gazebo turtlebot3_stage_4.launch
+$ roslaunch turtlebot3_slam turtlebot3_slam.launch slam_methods:=gmapping
+```
+Then run the package launch file (you may or may not need to resource the terminal.)
+```console
+$ cd catkin_ws
+$ source devel/setup.bash
+$ roslaunch frontier-exploration turtlebot3_navigation.launch
+```
+This should open a Gazebo and RviZ window.  
+It is important that the RviZ window config loads correctly,  
+the displays tab should contain,  
+- Map/local path/ global path from the start up files section (PART 1)
+- frontiers_map
+    - Subscribed to /frontiers_map
+    - Displays the occupancy grid for the group of all frontiers
+- MarkerArray
+    - Subscribed to /visualization_marker_array
+    - Displays color coordinated dotes representing distinct clusters of frontiers and their centroids.  
+ 
+If the RviZ config does not load properly, try opening the config directly from,  
+```console
+frontier-exploration/RvizProkectTwoConfig.rviz
+```
+
+Next, run the frontiers identification script
+```console
+$ rosrun frontier-exploration frontiers_finder.py
+```
+(you may need to resource the terminal)  
+This will automatically detect and segment the frontiers currently visible by the the robot.  
+We can watch the frontiers update by giving the robot a movement command.
+```console
+$ rosrun frontier-exploration moveActionClient.py -x -1 -y 1
+```
+You can also input goals in the RviZ window with the 2D Nav Goal button on the top panel.
+
+
+
 ##  Troubleshooting
 
 - Cannot find package error
@@ -110,3 +206,9 @@ This concludes the setup for the project.
     $ cd project/catkin_ws
     $ source devel/setup.bash
     ```
+- If you want to ensure a publisher is publishing
+    ```console
+    rostopic echo <topic name>
+    ```
+
+

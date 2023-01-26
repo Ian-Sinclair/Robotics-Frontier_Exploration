@@ -118,7 +118,7 @@ class occupancyGridSubscriber() :
             #  Remove outlier points and false frontiers.
             frontiersGrid, frontiersPoints = util.informed_erode( Grid = frontiersGrid, 
                                                                   array = frontiersPoints, 
-                                                                  mask = (2,2), 
+                                                                  mask_size = (2,2), 
                                                                   key = ExpandedOccupancyGrid, 
                                                                   tr=15 )
 
@@ -143,7 +143,7 @@ class occupancyGridSubscriber() :
             frontiersGrid = frontiersGrid.flatten()
 
             #  Publishes occupancy grid of non-segmented frontier points.
-            pub = rospy.Publisher( '/frontiers_map' , OccupancyGrid , queue_size=1 )
+            pub = rospy.Publisher( '/frontiers_map' , OccupancyGrid , queue_size=1 , latch=True )
             pub.publish( data.header, data.info , frontiersGrid )
             rospy.loginfo( 'Publishing' )
 
@@ -183,7 +183,7 @@ class occupancyGridSubscriber() :
             frontier_markerArray.markers = centroid_RviZ.markers + frontier_markerArray.markers
 
 
-            frontiersPub = rospy.Publisher( "/visualization_marker_array" , MarkerArray, queue_size=1 )
+            frontiersPub = rospy.Publisher( "/visualization_marker_array" , MarkerArray , queue_size=1 , latch=True )
             frontiersPub.publish( frontier_markerArray )
 
 
