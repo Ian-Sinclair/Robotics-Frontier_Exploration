@@ -149,7 +149,7 @@ def connection_component_analysis( grid, array, kernel_size ) :
         anchor = novel_points.pop()
         x,y = anchor
         if updated_grid[x][y] == 100 :
-            segment , novel_points, updated_grid = BFS(anchor , updated_grid , novel_points , kernel_size)
+            segment , novel_points , updated_grid = BFS(anchor , updated_grid , novel_points , kernel_size)
             frontiers += [segment]
 
     return frontiers
@@ -157,5 +157,5 @@ def connection_component_analysis( grid, array, kernel_size ) :
 
 
 def get_centroid(points_array) :
-    return point(sum([a.x for a in points_array])/len(points_array), sum([b.y for b in points_array])/len(points_array),0)
+    return point(sum([a.x for a in points_array])/len(points_array), sum([b.y for b in points_array])/len(points_array),1)
 
