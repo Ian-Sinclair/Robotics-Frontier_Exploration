@@ -6,6 +6,7 @@ import util
 import random
 from nav_msgs.msg import OccupancyGrid
 from visualization_msgs.msg import Marker, MarkerArray
+from geometry_msgs.msg import Point
 
 '''
     Class to subscribe to the map occupancy grid and detect frontier clusters

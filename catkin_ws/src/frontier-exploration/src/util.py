@@ -320,7 +320,7 @@ def connection_component_analysis( grid, array, kernel_size : tuple ) :
 
 
 def get_centroid(points_array) :
-    return point(sum([a.x for a in points_array])/len(points_array), sum([b.y for b in points_array])/len(points_array),1)
+    return (sum([a.x for a in points_array])/len(points_array), sum([b.y for b in points_array])/len(points_array))
 
     
 

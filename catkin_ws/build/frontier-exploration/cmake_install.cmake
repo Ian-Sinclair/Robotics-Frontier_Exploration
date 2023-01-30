@@ -1,8 +1,8 @@
-# Install script for directory: /home/iansinclair/github/COMP 4510 Software for AI Robotics/COMP-4745-project-2/catkin_ws/src/frontier-exploration
+# Install script for directory: /home/iansinclair/github/COMP-4510-project-2/catkin_ws/src/frontier-exploration
 
 # Set the install prefix
 if(NOT DEFINED CMAKE_INSTALL_PREFIX)
-  set(CMAKE_INSTALL_PREFIX "/home/iansinclair/github/COMP 4510 Software for AI Robotics/COMP-4745-project-2/catkin_ws/install")
+  set(CMAKE_INSTALL_PREFIX "/home/iansinclair/github/COMP-4510-project-2/catkin_ws/install")
 endif()
 string(REGEX REPLACE "/$" "" CMAKE_INSTALL_PREFIX "${CMAKE_INSTALL_PREFIX}")
 
@@ -38,17 +38,17 @@ if(NOT DEFINED CMAKE_CROSSCOMPILING)
 endif()
 
 if("x${CMAKE_INSTALL_COMPONENT}x" STREQUAL "xUnspecifiedx" OR NOT CMAKE_INSTALL_COMPONENT)
-  file(INSTALL DESTINATION "${CMAKE_INSTALL_PREFIX}/lib/pkgconfig" TYPE FILE FILES "/home/iansinclair/github/COMP 4510 Software for AI Robotics/COMP-4745-project-2/catkin_ws/build/frontier-exploration/catkin_generated/installspace/frontier-exploration.pc")
+  file(INSTALL DESTINATION "${CMAKE_INSTALL_PREFIX}/lib/pkgconfig" TYPE FILE FILES "/home/iansinclair/github/COMP-4510-project-2/catkin_ws/build/frontier-exploration/catkin_generated/installspace/frontier-exploration.pc")
 endif()
 
 if("x${CMAKE_INSTALL_COMPONENT}x" STREQUAL "xUnspecifiedx" OR NOT CMAKE_INSTALL_COMPONENT)
   file(INSTALL DESTINATION "${CMAKE_INSTALL_PREFIX}/share/frontier-exploration/cmake" TYPE FILE FILES
-    "/home/iansinclair/github/COMP 4510 Software for AI Robotics/COMP-4745-project-2/catkin_ws/build/frontier-exploration/catkin_generated/installspace/frontier-explorationConfig.cmake"
-    "/home/iansinclair/github/COMP 4510 Software for AI Robotics/COMP-4745-project-2/catkin_ws/build/frontier-exploration/catkin_generated/installspace/frontier-explorationConfig-version.cmake"
+    "/home/iansinclair/github/COMP-4510-project-2/catkin_ws/build/frontier-exploration/catkin_generated/installspace/frontier-explorationConfig.cmake"
+    "/home/iansinclair/github/COMP-4510-project-2/catkin_ws/build/frontier-exploration/catkin_generated/installspace/frontier-explorationConfig-version.cmake"
     )
 endif()
 
 if("x${CMAKE_INSTALL_COMPONENT}x" STREQUAL "xUnspecifiedx" OR NOT CMAKE_INSTALL_COMPONENT)
-  file(INSTALL DESTINATION "${CMAKE_INSTALL_PREFIX}/share/frontier-exploration" TYPE FILE FILES "/home/iansinclair/github/COMP 4510 Software for AI Robotics/COMP-4745-project-2/catkin_ws/src/frontier-exploration/package.xml")
+  file(INSTALL DESTINATION "${CMAKE_INSTALL_PREFIX}/share/frontier-exploration" TYPE FILE FILES "/home/iansinclair/github/COMP-4510-project-2/catkin_ws/src/frontier-exploration/package.xml")
 endif()
 
