@@ -1,4 +1,4 @@
-prefix=/home/iansinclair/github/COMP 4510 Software for AI Robotics/COMP-4745-project-2/catkin_ws/devel
+prefix=/home/iansinclair/github/COMP-4510-project-2/catkin_ws/devel
 
 Name: frontier-exploration
 Description: Description of frontier-exploration

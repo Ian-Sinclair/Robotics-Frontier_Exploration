@@ -1,2 +1,2 @@
 frontier-exploration
--DCATKIN_DEVEL_PREFIX=/home/iansinclair/github/COMP 4510 Software for AI Robotics/COMP-4745-project-2/catkin_ws/devel -DCMAKE_INSTALL_PREFIX=/home/iansinclair/github/COMP 4510 Software for AI Robotics/COMP-4745-project-2/catkin_ws/install -G Unix Makefiles
+-DCATKIN_DEVEL_PREFIX=/home/iansinclair/github/COMP-4510-project-2/catkin_ws/devel -DCMAKE_INSTALL_PREFIX=/home/iansinclair/github/COMP-4510-project-2/catkin_ws/install -G Unix Makefiles

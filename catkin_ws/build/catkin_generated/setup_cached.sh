@@ -7,3 +7,5 @@
 # new environment variables
 
 # modified environment variables
+export PWD='/home/iansinclair/github/COMP-4510-project-2/catkin_ws/build'
+export ROS_PACKAGE_PATH='/home/iansinclair/github/COMP 4510 Software for AI Robotics/COMP-4745-project-2/catkin_ws/src:/home/iansinclair/github/COMP-4510-project-2/catkin_ws/src:/home/iansinclair/github/COMP 4510 Software for AI Robotics/COMP-4745-project-2/catkin_ws/src:/opt/ros/noetic/share'
