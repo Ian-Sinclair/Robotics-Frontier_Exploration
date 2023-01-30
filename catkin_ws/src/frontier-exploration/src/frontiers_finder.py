@@ -180,6 +180,7 @@ class occupancyGridSubscriber() :
                                                     r=0,
                                                     g=1,
                                                     b=0, 
+                                                    z=1,
                                                     id=i+len(frontier_markerArray.markers), 
                                                     sx=0.25,
                                                     sy=0.25,
@@ -233,7 +234,8 @@ def convert_marker(points = None,
                     type = 8, 
                     sx = 0.05, 
                     sy = 0.05, 
-                    sz = 0.05 ) :
+                    sz = 0.05,
+                    z = 0 ) :
     marker = Marker()
     marker.header.frame_id = "map"
     marker.header.stamp = rospy.Time.now()
@@ -262,7 +264,7 @@ def convert_marker(points = None,
         return None
 
     if points is not None : 
-        marker.points = points
+        marker.points = [Point(p[0],p[1],z) for p in points]
 
 
     marker.lifetime = rospy.Duration()

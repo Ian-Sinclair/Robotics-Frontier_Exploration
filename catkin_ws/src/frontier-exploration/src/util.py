@@ -170,7 +170,7 @@ def tf_occuGrid_to_map( array , width = 384, height = 384, offset = 10, map_widt
     Returns:
         numpy array: modified list of tuples in map coordinate form.
     """    
-    return [point(((c/width)*map_width) - offset , ((r/height)*map_width) - offset , 0) for r,c in array]
+    return [(((c/width)*map_width) - offset , ((r/height)*map_width) - offset) for r,c in array]
 
 
 
@@ -320,7 +320,7 @@ def connection_component_analysis( grid, array, kernel_size : tuple ) :
 
 
 def get_centroid(points_array) :
-    return (sum([a.x for a in points_array])/len(points_array), sum([b.y for b in points_array])/len(points_array))
+    return (sum([a[0] for a in points_array])/len(points_array), sum([b[1] for b in points_array])/len(points_array))
 
     
 
