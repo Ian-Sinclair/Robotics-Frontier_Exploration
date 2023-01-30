@@ -308,7 +308,7 @@ def connection_component_analysis( grid, array, kernel_size : tuple ) :
     frontiers = []
     updated_grid = grid.copy()
 
-    while len(novel_points) > 0 :
+    while len( novel_points ) > 0 :
         anchor = novel_points.pop()
         x,y = anchor
         if updated_grid[x][y] == 100 :
@@ -321,4 +321,16 @@ def connection_component_analysis( grid, array, kernel_size : tuple ) :
 
 def get_centroid(points_array) :
     return point(sum([a.x for a in points_array])/len(points_array), sum([b.y for b in points_array])/len(points_array),1)
+
+    
+
+
+
+
+
+
+
+
+
+
 

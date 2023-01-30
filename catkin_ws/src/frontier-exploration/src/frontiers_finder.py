@@ -64,22 +64,22 @@ from visualization_msgs.msg import Marker, MarkerArray
 
 
 class occupancyGridSubscriber() :
-    cache = {'Occupancy' : None , 
-             'frontierGrid' : [],
-             'obstacle_record' : set([])}
+    cache = { 'Occupancy' : None , 
+             'frontierGrid' : [] ,
+             'obstacle_record' : set([]) }
     def __init__( self ) :
         self.init_node()
         self.init_Subscriber()
 
     
-    def init_node(self) :
-        rospy.init_node('gridSub', anonymous=True)
+    def init_node( self ) :
+        rospy.init_node( 'gridSub' , anonymous = True )
 
-    def init_Subscriber(self) :
+    def init_Subscriber( self ) :
         rospy.Subscriber("map", OccupancyGrid, self.callback)
         rospy.spin()
 
-    def callback(self, data) :
+    def callback( self , data ) : 
         '''
             callback function:
                 Runs every time something is published to /map topic.
@@ -90,26 +90,26 @@ class occupancyGridSubscriber() :
                 --> resolution = 0.05   width = 384     height = 384
                 --> start x: -10.0,     y: -10.0,   z:0.0
         '''
-        #  initializes the cache to compare callback calls between times steps. (1st time step only)
-        if occupancyGridSubscriber.cache['Occupancy'] == None :
-            occupancyGridSubscriber.cache['Occupancy'] = [0]*len(data.data)
+        #  Initializes the cache to compare callback calls between times steps. (1st time step only)
+        if occupancyGridSubscriber.cache[ 'Occupancy' ] == None :
+            occupancyGridSubscriber.cache[ 'Occupancy' ] = [0]*len( data.data )
 
 
         #  Determines if the occupancy grid changed sense the last time step.
         step_diff = []
-        for i in range(len(data.data)) :
-            if data.data[i] != occupancyGridSubscriber.cache['Occupancy'][i] :
-                step_diff += [data.data[i]]
-                if data.data[i] == 100 :  # might as well collect the location of obstacles too.
-                    occupancyGridSubscriber.cache['obstacle_record'].add(i)
+        for i in range( len( data.data ) ) :
+            if data.data[ i ] != occupancyGridSubscriber.cache[ 'Occupancy' ][ i ] :
+                step_diff += [ data.data[ i ] ]
+                if data.data[ i ] == 100 :  # might as well collect the location of obstacles too.
+                    occupancyGridSubscriber.cache[ 'obstacle_record' ].add( i )
 
-        if len(step_diff) > 0 :
-            #  update cache with new occupancy grid
+        if len( step_diff ) > 0 :
+            #  Update cache with new occupancy grid
             rospy.loginfo('Updating cache')
-            occupancyGridSubscriber.cache['Occupancy'] = data.data
+            occupancyGridSubscriber.cache[ 'Occupancy' ] = data.data
 
-            occupancyGrid = np.fromiter(data.data, int).reshape(384,384)  #  converts occupancy grid to grid structure/ numpy array
-            obstacles = [*map(lambda x: (int(x/384),x%384 ), occupancyGridSubscriber.cache['obstacle_record'])]
+            occupancyGrid = np.fromiter( data.data , int ).reshape(384 , 384)  #  converts occupancy grid to grid structure/ numpy array
+            obstacles = [*map( lambda x: (int(x/384),x%384 ), occupancyGridSubscriber.cache['obstacle_record'])]
 
             #  Expands obstacles using approximate cspace of the robot
             ExpandedOccupancyGrid, _ = util.informed_dilate( grid = occupancyGrid , 
@@ -142,7 +142,11 @@ class occupancyGridSubscriber() :
             map_frontiers = [ util.tf_occuGrid_to_map( f ) for f in frontiers ]
 
             #  Gets centroid coordinates for each frontier cluster
-            centroids = [ util.get_centroid( f ) for f in map_frontiers ]  #  returns a list of 'Point' types
+            centroids = [ (util.get_centroid( f ),f) for f in map_frontiers ]  #  returns a list of 'Point' types
+
+            targets = sorted(centroids, key=lambda a: len(a[1]))
+            print([a[0] for a in targets])
+            print('print')
 
             frontiersGrid = frontiersGrid.flatten()
 
@@ -171,7 +175,7 @@ class occupancyGridSubscriber() :
             centroid_RviZ = MarkerArray()
 
             centroid_RviZ.markers = [
-                                    convert_marker( points=[f],
+                                    convert_marker( points=[f[0]],
                                                     r=0,
                                                     g=1,
                                                     b=0, 
