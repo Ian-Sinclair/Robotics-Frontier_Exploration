@@ -146,8 +146,6 @@ class occupancyGridSubscriber() :
             centroids = [ (util.get_centroid( f ),f) for f in map_frontiers ]  #  returns a list of 'Point' types
 
             targets = sorted(centroids, key=lambda a: len(a[1]))
-            print([a[0] for a in targets])
-            print('print')
 
             frontiersGrid = frontiersGrid.flatten()
 
@@ -178,7 +176,7 @@ class occupancyGridSubscriber() :
             centroid_RviZ.markers = [
                                     convert_marker( points=[f[0]],
                                                     r=0,
-                                                    g=1,
+                                                    g=0.1*i,
                                                     b=0, 
                                                     z=1,
                                                     id=i+len(frontier_markerArray.markers), 
@@ -187,7 +185,7 @@ class occupancyGridSubscriber() :
                                                     sz=0.25, 
                                                     type=7,
                                                     namespace='centroids' ) 
-                                                    for i,f in enumerate(centroids)
+                                                    for i,f in enumerate(targets)
                                                     ]
 
             frontier_markerArray.markers = centroid_RviZ.markers + frontier_markerArray.markers
