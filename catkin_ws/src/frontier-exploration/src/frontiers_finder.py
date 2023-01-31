@@ -176,7 +176,7 @@ class occupancyGridSubscriber() :
             centroid_RviZ.markers = [
                                     convert_marker( points=[f[0]],
                                                     r=0,
-                                                    g=0.1*i,
+                                                    g=1,
                                                     b=0, 
                                                     z=1,
                                                     id=i+len(frontier_markerArray.markers), 
