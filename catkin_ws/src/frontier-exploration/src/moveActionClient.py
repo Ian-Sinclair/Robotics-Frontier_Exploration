@@ -26,7 +26,7 @@ class moveActionClient() :
         '''
             Inits the internal node and action client with rospy.
         '''
-        self.init_node()
+        #self.init_node()
         self.init_action_client()
 
     def init_node(self):

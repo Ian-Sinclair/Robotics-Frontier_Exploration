@@ -4,6 +4,7 @@ import rospy
 import numpy as np
 import util
 import random
+from moveActionClient import moveActionClient
 from nav_msgs.msg import OccupancyGrid
 from visualization_msgs.msg import Marker, MarkerArray
 from geometry_msgs.msg import Point
@@ -143,9 +144,17 @@ class occupancyGridSubscriber() :
             map_frontiers = [ util.tf_occuGrid_to_map( f ) for f in frontiers ]
 
             #  Gets centroid coordinates for each frontier cluster
-            centroids = [ (util.get_centroid( f ),f) for f in map_frontiers ]  #  returns a list of 'Point' types
+            centroids = [ ( util.get_centroid( f ) , f ) for f in map_frontiers ]  #  returns a list of 'Point' types
 
-            targets = sorted(centroids, key=lambda a: len(a[1]))
+            targets = sorted(centroids, key=lambda a: len( a[ 1 ] ) )
+
+            goal = targets[-1][0]
+
+            goal_client = moveActionClient()        
+            rospy.loginfo('sending goal')
+            print(goal)
+            goal_client.coordinate_callback( x = goal[0] , y = goal[1] )
+
 
             frontiersGrid = frontiersGrid.flatten()
 
