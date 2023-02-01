@@ -36,10 +36,10 @@ class navigation() :
             try:
                 trans = self.tfBuffer.lookup_transform('map', 'base_footprint', rospy.Time(0))
                 return trans
-            except (tf2_ros.LookupException, tf2_ros.ConnectivityException, tf2_ros.ExtrapolationException):
+            except (tf2_ros.LookupException, tf2_ros.ConnectivityException, tf2_ros.ExtrapolationException) :
                 rate.sleep()
                 count += 1
-                if count > 50 :
+                if count > 200 :
                     rospy.logerr('ERROR: Could not find map to base_footprint transform')
                 continue
 
@@ -110,9 +110,9 @@ class navigation() :
             
             goal = util.tf_occuGrid_to_map([goal])[0]
             a,b = goal
-            goal = self.transform_pose(a,b , 'base_footprint')
-            x,y = goal.position.x, goal.position.y
-            self.coordinate_callback(x,y)
+            #goal = self.transform_pose(a,b , 'base_footprint')
+            x,y = goal.position.x , goal.position.y
+            self.coordinate_callback( x , y )
                 
 
             centroid_RviZ.markers = [

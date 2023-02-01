@@ -68,12 +68,14 @@ def informed_dilate( grid , mask_size : tuple , array , target = 100 ) :
         on the mask_size. 
 
     Args:
+    ------
         grid (numpy array): 2D matrix
         mask_size (_type_): tuple, mask_size = (n,m) creates an n times m mask to convolve against the grid.
         array (numpy array): 1D list of target points.
         target (int, optional): reassigns neighboring points to target value. Defaults to 100.
 
     Returns:
+    --------
         new_grid (numpy array): 2d matrix with expanded targets.
         new_array (numpy array): updated list of target points.
     """    
@@ -101,11 +103,13 @@ def informed_erode( Grid , array , mask_size : tuple , key = None, tr = 3, mask 
         Neighbors are determined by an n times m mask.
 
     conventions: 
+    -
         -1 : unknown space
         0 : known unoccupied space
         100 : known occupied space
 
     Args:
+    -
         Grid (numpy array): 2D numpy matrix
         array (numpy array): 1D list of target points
         mask_size (tuple): mask_size = (n,m) creates an n times m mask.
@@ -114,6 +118,7 @@ def informed_erode( Grid , array , mask_size : tuple , key = None, tr = 3, mask 
         mask (_type_, optional): fill if a special mask is needed, overwrites mask_size. Defaults to None.
 
     Returns:
+    -
         new_grid (numpy array): 2D matrix with re-assigned targets.
         new_points (numpy array): 1D array of all remaining target points ( frontiers )
     """    
@@ -137,16 +142,21 @@ def informed_erode( Grid , array , mask_size : tuple , key = None, tr = 3, mask 
 
 
 def naive_target_filter(Grid, target=100) :
-    """takes a grid and a target,
+    """
+    Summary
+    -
+    takes a grid and a target,
         returns a list of the indices 
         coinciding with each occurrence of
         the target
 
     Args:
+    -
         Grid (numpy array): 2D matrix
         target (int, optional): targets to extract from grid. Defaults to 100.
 
     Returns:
+    -
         points (numpy array): list of indices coinciding with each occurrence of target in grid.
     """    
     a,b = Grid.shape
@@ -158,9 +168,13 @@ def naive_target_filter(Grid, target=100) :
 
 
 def tf_occuGrid_to_map( array , width = 384, height = 384, offset = 10, map_width = 19.2) :
-    """Coordinate transform from 2D matrix to map coordinates.
+    """
+    Summary
+    -
+    Coordinate transform from 2D matrix to map coordinates.
 
     Args:
+    -
         array (numpy array): list of matrix indices as tuples
         width (int, optional): width of 2d numpy array. Defaults to 384.
         height (int, optional): height of 2d numpy array. Defaults to 384.
@@ -168,6 +182,7 @@ def tf_occuGrid_to_map( array , width = 384, height = 384, offset = 10, map_widt
         map_width (float, optional): the total size of the map. Defaults to 19.2.
 
     Returns:
+    -
         numpy array: modified list of tuples in map coordinate form.
     """    
     return [(((c/width)*map_width) - offset , ((r/height)*map_width) - offset) for r,c in array]
@@ -180,22 +195,28 @@ def tf_map_to_occuGrid( array , width = 384, height = 384, offset = 10, map_widt
 
 
 def edge_detection(Grid, mask_size : tuple = (1,1), filtered_Grid = None) :
-    """Finds edges in a 2D grid based on disparity between pixel intensity 
+    """
+    Summary
+    -
+    Finds edges in a 2D grid based on disparity between pixel intensity 
         values. Takes a 2D grid, convolves an n times m mask at each index.
         If both a 0 and -1 are with a mask at an index, that index is marked
         as an edge (frontier)
     
     conventions:
+    -
         100 : known occupied space
         0 : known empty space
         -1 : unknown space
 
     Args:
+    -
         Grid (_type_): _description_
         mask_size (tuple, optional): _description_. Defaults to (1,1).
         filtered_Grid (_type_, optional): _description_. Defaults to None.
 
     Returns:
+    -
         filtered_Grid: binary grid with 100 as edges and 0 as non-edges.
         edges : list of the index locations of all edge pixels.
     """    
@@ -217,17 +238,22 @@ def edge_detection(Grid, mask_size : tuple = (1,1), filtered_Grid = None) :
 
 
 def informed_edge_detection(Grid, array, mask_size : tuple = (1,1) , filtered_Grid = None) :
-    """Edge detection based on a priori knowledge about pixels that are likely to be edges.
+    """
+    Summary
+    -
+    Edge detection based on a priori knowledge about pixels that are likely to be edges.
         determines which pixels are actually edges. (less exhaustive than regular edge detection 
         but very fast.)
 
     Args:
+    -
         Grid (numpy array): 2D numpy matrix
         array (numpy array): list of indices that could be edges.
         mask_size (tuple, optional): tuple: (n,m) --> creates an n times m mask. Defaults to (1,1).
         filtered_Grid (_type_, optional): fill if need to preserve static edges in the return grid. Defaults to None.
 
     Returns:
+    -
         filtered_Grid: binary grid with 100 as edges and 0 as non-edges.
         edges : list of the index locations of all edge pixels.
     """    
@@ -281,7 +307,10 @@ def BFS( anchor , grid , array , kernel_size ) :
 
 
 def connection_component_analysis( grid, array, kernel_size : tuple ) :
-    """Segment each frontier as semi-continuous topological regions. 
+    """
+    Summary
+    -
+    Segment each frontier as semi-continuous topological regions. 
                 By semi-continuous we mean that the region is either fully connected or any gaps between 
                 components are 'small'.
             This is done by running breadth first search (BFS) sequentially on each frontier point
@@ -290,11 +319,13 @@ def connection_component_analysis( grid, array, kernel_size : tuple ) :
             Neighbors are determined by overlaying an (n X n) kernel. 
 
     Args:
+    -
         grid (numpy array): 2D matrix
         array (numpy array): 1D list of frontier points
         kernel_size (tuple): (n,m) --> size n times m mask
 
     Returns:
+    -
         frontiers (numpy array): returns a list of frontier clusters.
     """    
     '''
@@ -380,7 +411,7 @@ def ExpandingWaveForm(Grid, start : tuple, goals : list) :
         # check if anchor is goal, if it is find the path back to start.
         if anchor in copy_goals :
             paths[anchor] = extract_path(energyMap , start , anchor)
-            copy_goals.remove(anchor)
+            copy_goals.remove( anchor )
 
         successors = [x for x in get_neighbors(Grid, anchor) if x not in queue and energyMap[x] == 0]
         if len(successors) > 10 :
