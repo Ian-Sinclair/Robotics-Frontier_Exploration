@@ -172,6 +172,9 @@ def tf_occuGrid_to_map( array , width = 384, height = 384, offset = 10, map_widt
     """    
     return [(((c/width)*map_width) - offset , ((r/height)*map_width) - offset) for r,c in array]
 
+def tf_map_to_occuGrid( array , width = 384, height = 384, offset = 10, map_width = 19.2) :
+    return [(int((width*(x+offset))/map_width) , int((height*(y+offset))/map_width )) for x,y in array]
+
 
 
 
@@ -324,6 +327,74 @@ def get_centroid(points_array) :
 
     
 
+
+def ExpandingWaveForm(Grid, start : tuple, goals : list) :
+    def get_neighbors(Grid, point) :
+        kernel_size = (1,1)
+        kernel = [(i,j) for i in range(-kernel_size[0] , kernel_size[0]+1) for j in range(-kernel_size[1] , kernel_size[1]+1)]
+        kernel.remove((0,0))
+        x,y = point
+        return [(x+a,y+b) for a,b in kernel if Grid[x+a][y+b] != 100]
+    
+    def weight( Grid , a , b ) :
+        # weights path additions based on the restricting cspace
+        filter = [(0,2),(0,-2),(2,0),(-2,0)]
+        #return max( len([Grid[a+s][b+t] for s,t in filter if Grid[a+s][b+t]==100]) , 1 )
+        return 1
+    
+    def extract_path(HeatMap , origin , goal) :
+        def get_path_neighbors(HeatMap , location) :
+            kernel_size = (1,1)
+            kernel = [(i,j) for i in range(-kernel_size[0] , kernel_size[0]+1) for j in range(-kernel_size[1] , kernel_size[1]+1)]
+            kernel.remove((0,0))
+            x,y = location
+            return [(x+a,y+b) for a,b in kernel if HeatMap[x+a][y+b]!=0 or (x+a,y+b) == origin]
+
+        i,j = goal
+        path = [(i,j)]
+        count = 0
+        while (i,j) != origin :
+            count += 1
+            if count > 1000 :
+                print('Timeout ERROR: expanding waveform in util path exceeding maximum depth')
+                return None
+            neighbors = [x for x in get_path_neighbors(HeatMap , (i,j)) if x not in path]
+            i,j = neighbors[0]
+            minimum = HeatMap[i][j]
+            for a,b in neighbors :
+                if HeatMap[a][b] < minimum :
+                    minimum = HeatMap[i][j]
+                    i,j = a,b
+            path += [(i,j)]
+        return (sum([HeatMap[i][j] for i,j in path]) , path)
+
+
+    paths = {}
+    copy_goals = [x for x in goals]
+    energyMap = np.zeros(Grid.shape)
+    energyMap[start] = 1
+    queue = [start]
+    while len(copy_goals) > 0 and len(queue) > 0 :
+        anchor = queue.pop()
+        x,y = anchor
+        # check if anchor is goal, if it is find the path back to start.
+        if anchor in copy_goals :
+            paths[anchor] = extract_path(energyMap , start , anchor)
+            copy_goals.remove(anchor)
+
+        successors = [x for x in get_neighbors(Grid, anchor) if x not in queue and energyMap[x] == 0]
+        if len(successors) > 10 :
+            print(len(successors))
+        for a,b in successors :
+            energyMap[a][b] = energyMap[x][y] + weight(Grid, a,b)
+        queue = successors + queue
+    return paths, energyMap
+
+
+
+
+def utility(Grid, robot_pos, centroids) :
+    pass
 
 
 

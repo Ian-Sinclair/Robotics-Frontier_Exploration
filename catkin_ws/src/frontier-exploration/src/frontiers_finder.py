@@ -3,11 +3,13 @@
 import rospy
 import numpy as np
 import util
+from frontier_navigation import navigation
 import random
+import tf2_ros
 from moveActionClient import moveActionClient
 from nav_msgs.msg import OccupancyGrid
 from visualization_msgs.msg import Marker, MarkerArray
-from geometry_msgs.msg import Point
+from geometry_msgs.msg import Point, PoseArray, Pose
 
 '''
     Class to subscribe to the map occupancy grid and detect frontier clusters
@@ -66,9 +68,11 @@ from geometry_msgs.msg import Point
 
 
 class occupancyGridSubscriber() :
+    navClient = navigation()
     cache = { 'Occupancy' : None , 
              'frontierGrid' : [] ,
-             'obstacle_record' : set([]) }
+             'obstacle_record' : set([]) ,
+             'base_position' : None }
     def __init__( self ) :
         self.init_node()
         self.init_Subscriber()
@@ -92,6 +96,8 @@ class occupancyGridSubscriber() :
                 --> resolution = 0.05   width = 384     height = 384
                 --> start x: -10.0,     y: -10.0,   z:0.0
         '''
+
+
         #  Initializes the cache to compare callback calls between times steps. (1st time step only)
         if occupancyGridSubscriber.cache[ 'Occupancy' ] == None :
             occupancyGridSubscriber.cache[ 'Occupancy' ] = [0]*len( data.data )
@@ -121,6 +127,11 @@ class occupancyGridSubscriber() :
             #  Finding Frontier Candidates
             frontiersGrid, frontiersPoints = util.edge_detection( Grid = ExpandedOccupancyGrid )
 
+            if len(frontiersPoints) == 0 :
+                rospy.loginfo('MAP EXPLORED: Returning To Origin')
+                occupancyGridSubscriber.navClient.pushGoal( x=0 , y=0 )
+                return None
+
             #  Remove outlier points and false frontiers.
             frontiersGrid, frontiersPoints = util.informed_erode( Grid = frontiersGrid, 
                                                                   array = frontiersPoints, 
@@ -144,19 +155,11 @@ class occupancyGridSubscriber() :
             map_frontiers = [ util.tf_occuGrid_to_map( f ) for f in frontiers ]
 
             #  Gets centroid coordinates for each frontier cluster
-            centroids = [ ( util.get_centroid( f ) , f ) for f in map_frontiers ]  #  returns a list of 'Point' types
-
-            targets = sorted(centroids, key=lambda a: len( a[ 1 ] ) )
-
-            goal = targets[-1][0]
-
-            goal_client = moveActionClient()        
-            rospy.loginfo('sending goal')
-            print(goal)
-            goal_client.coordinate_callback( x = goal[0] , y = goal[1] )
-
+            centroids = [ util.get_centroid( f )  for f in map_frontiers ]
 
             frontiersGrid = frontiersGrid.flatten()
+
+            occupancyGridSubscriber.navClient.auto_navigation( ExpandedOccupancyGrid , centroids , map_frontiers)
 
             #  Publishes occupancy grid of non-segmented frontier points.
             pub = rospy.Publisher( '/frontiers_map' , OccupancyGrid , queue_size=1 , latch=True )
@@ -179,26 +182,6 @@ class occupancyGridSubscriber() :
                                                             namespace='frontier_points' ) 
                                                             for i,f in enumerate(map_frontiers)
                                                             ]
-
-            centroid_RviZ = MarkerArray()
-
-            centroid_RviZ.markers = [
-                                    convert_marker( points=[f[0]],
-                                                    r=0,
-                                                    g=1,
-                                                    b=0, 
-                                                    z=1,
-                                                    id=i+len(frontier_markerArray.markers), 
-                                                    sx=0.25,
-                                                    sy=0.25,
-                                                    sz=0.25, 
-                                                    type=7,
-                                                    namespace='centroids' ) 
-                                                    for i,f in enumerate(targets)
-                                                    ]
-
-            frontier_markerArray.markers = centroid_RviZ.markers + frontier_markerArray.markers
-
 
             frontiersPub = rospy.Publisher( "/visualization_marker_array" , MarkerArray , queue_size=1 , latch=True )
             frontiersPub.publish( frontier_markerArray )
