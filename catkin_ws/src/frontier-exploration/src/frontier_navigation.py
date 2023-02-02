@@ -21,7 +21,8 @@ import tf2_geometry_msgs
 
 class navigation() :
     cache = {'robot_position' : None, 
-            'active centroids' : []}
+            'active centroids' : [],
+            'goal' : None}
     def __init__(self) :
         self.init_action_client()
 
@@ -70,15 +71,35 @@ class navigation() :
         goal = MoveBaseGoal()
         goal.target_pose.header.frame_id = 'base_footprint'
         goal.target_pose.pose = pose
-        self.client.send_goal(goal)
+
+        self.client.send_goal( goal, done_cb=self.done_callback , active_cb= self.active_callback , feedback_cb= self.feedback_callback )
+
         self.client.wait_for_result() # Note sure wait for result is what I want
     
+    def done_callback() :
+        # Get next centroid target....
+        pass
+    def active_callback() :
+        #  callback that activated as soon as a goal is received...
+        #  remove centroid from list of centroids
+        pass
+    def feedback_callback() :
+        pass
+
+
+    def recast_goal() :
+        #  if a centroid is unreachable, cast rays around it until you find something that looks reachable...
+        #  Probably can use the wavefront path...
+        pass
+
+
     def pushGoal_max_priority(self,x,y) :
         self.client.cancel_all_goals()
         x,y=self.transform_pose(x,y , 'base_footprint')
         self.coordinate_callback(x=x,y=y)
 
-    def auto_navigation(self, Occupancy_grid, map_frontiers ) :
+
+    def auto_navigation(self , Occupancy_grid , map_frontiers ) :
         '''
             1) Get position of the robot
             2) Filter centroids and extract new goal
@@ -88,59 +109,30 @@ class navigation() :
         centroids = [ util.get_centroid( f )  for f in map_frontiers ]
 
         navigation.cache['robot_position'] = self.init_frame_listener(source='map' , target='base_footprint')
-        p,q=navigation.cache['robot_position'].transform.translation.x,navigation.cache['robot_position'].transform.translation.y
-        grid_goal = util.tf_map_to_occuGrid([(q,p)])[0]
-        centroid_RviZ = MarkerArray()
 
-        grid_goals = util.tf_map_to_occuGrid(centroids)
+        p = navigation.cache['robot_position'].transform.translation.x
+        q = navigation.cache['robot_position'].transform.translation.y
 
+        robot_grid_pos = util.tf_map_to_occuGrid([(q,p)])[0]
+        centroid_grid_poses = util.tf_map_to_occuGrid(centroids)
+        centroid_grid_poses = [(y,x) for x,y in centroid_grid_poses]
 
-        cc = [(y,x) for x,y in grid_goals]
-        paths, heatmap = util.ExpandingWaveForm(Occupancy_grid['data'], grid_goal , cc)
+        paths, heatmap = util.ExpandingWaveForm(Occupancy_grid['data'], robot_grid_pos , centroid_grid_poses)
         # paths = { centroid : (distance to robot , path list) }
+        centroids_entropy = util.random_entropy_sample( Occupancy_grid['data'] , map_frontiers , centroid_grid_poses )
+        # centroids_entropy = { centroid : map entropy around cluster corresponding to centroid }
+
+        centroids_utility = sorted( centroid_grid_poses , key = lambda centroid : centroids_entropy[centroid]/paths[centroid][0] )
+
 
         #  Publishes occupancy grid of non-segmented frontier points.
-        for key,sum_and_path in paths.items() :
-            for i,j in sum_and_path[1] : 
-                heatmap[i][j] = 100
-        heatmap = heatmap.flatten()
-        for i,v in enumerate(heatmap) : 
-            if v > 100 : heatmap[i] = 100
+        for key,sum_and_path in paths.items( ) :
+            for i,j in sum_and_path[ 1 ] : 
+                heatmap[ i ][ j ] = 100
+        heatmap = heatmap.flatten( )
+        heatmap = heatmap.clip( 0 , 100 )
         pub = rospy.Publisher( '/energy_map' , OccupancyGrid , queue_size=1 , latch=True )
         pub.publish( Occupancy_grid['header'], Occupancy_grid['info'] , heatmap )
-
-
-        maxi = 10000
-        for key,path in paths.items() :
-            if path[0]<maxi :
-                maxi = path[0]
-                goal = key
-        '''
-        goal = util.tf_occuGrid_to_map([goal])[0]
-        a,b = goal
-        goal = self.transform_pose(a,b , source = 'map', target_frame='base_footprint')
-        x,y = goal.position.x , goal.position.y
-        #self.coordinate_callback( x , y )
-        ''' 
-
-        centroid_RviZ.markers = [
-                                self.convert_marker( points=[f],
-                                                r=0,
-                                                g=1,
-                                                b=0, 
-                                                z=1,
-                                                id=i,
-                                                sx=0.25,
-                                                sy=0.25,
-                                                sz=0.25, 
-                                                type=7,
-                                                namespace='centroids' ) 
-                                                for i,f in enumerate(centroids)
-                                                ]
-        
-        frontiersPub = rospy.Publisher( "/visualization_marker_array" , MarkerArray , queue_size=1 , latch=True )
-        frontiersPub.publish( centroid_RviZ )
-
 
 
 

@@ -439,33 +439,26 @@ def ExpandingWaveForm(Grid, start : tuple, goals : list) :
 
 
 
-def random_entropy_sample(OccupancyGrid, clusters, centroids, encloser_size = 20, sample_size=10, sample_rate = 50) :
+def random_entropy_sample(OccupancyGrid, clusters, centroids, encloser_size = 40, sample_size=10, sample_rate = 50) :
     entropy = {}
     entropy_map={ -1 : 1,
                   0 : 0,
                  100 : 0}
+    cluster = np.array(clusters)
     encloser = [(a,b) for a in range(-int(encloser_size/2),int(encloser_size/2)) for b in range(-int(encloser_size/2),int(encloser_size/2))]
     for cluster, centroid in zip(clusters , centroids) :
         H_sample = 0
-        sample = np.random.choice(cluster , size = sample_size, replace = False)
+        sample_index = np.random.choice(len(cluster)-1 , size = min(sample_size , len(cluster)-1) , replace = False)
+        sample = tf_map_to_occuGrid( [cluster[i] for i in sample_index] )
         for i,j in sample :
-            focus = np.random.choice(encloser , size = sample_rate, replace=False)
-            H_sample += sum([entropy_map( OccupancyGrid[i+a][j+b] ) for a,b in focus ])/sample_rate
+            focus_index = np.random.choice(len(encloser) , size = sample_rate, replace=False)
+            focus = [encloser[k] for k in focus_index]
+            H_sample += sum([entropy_map[ OccupancyGrid[i+a][j+b] ] for a,b in focus ])/sample_rate
         entropy[centroid] = H_sample
     return entropy
             
 
 
-
-
-
-
-
-
-
-
-def utility(Grid, robot_pos, centroids) :
-    pass
 
 
 

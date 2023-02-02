@@ -156,11 +156,6 @@ class occupancyGridSubscriber() :
 
             frontiersGrid = frontiersGrid.flatten()
 
-            nav_occupancy_grid = {'info' : data.info,
-                                  'header' : data.header,
-                                  'data' : ExpandedOccupancyGrid}
-            occupancyGridSubscriber.navClient.auto_navigation( nav_occupancy_grid , map_frontiers )
-
             #  Publishes occupancy grid of non-segmented frontier points.
             pub = rospy.Publisher( '/frontiers_map' , OccupancyGrid , queue_size=1 , latch=True )
             pub.publish( data.header, data.info , frontiersGrid )
@@ -173,6 +168,7 @@ class occupancyGridSubscriber() :
             #  Creates marker objects for frontier points.
             frontier_markerArray = MarkerArray()
 
+
             frontier_markerArray.markers = [
                                             convert_marker( f, 
                                                             r=random.random() ,
@@ -183,8 +179,34 @@ class occupancyGridSubscriber() :
                                                             for i,f in enumerate(map_frontiers)
                                                             ]
 
+            centroids = [ util.get_centroid( f )  for f in map_frontiers ]
+
+            centroid_RviZ = MarkerArray()
+            centroid_RviZ.markers = [
+                                    convert_marker( points=[f],
+                                                    r=0,
+                                                    g=1,
+                                                    b=0, 
+                                                    z=1,
+                                                    id=i,
+                                                    sx=0.25,
+                                                    sy=0.25,
+                                                    sz=0.25, 
+                                                    type=7,
+                                                    namespace='centroids' ) 
+                                                    for i,f in enumerate(centroids)
+                                                    ]
+            
+            frontier_markerArray.markers = centroid_RviZ.markers + frontier_markerArray.markers
+
             frontiersPub = rospy.Publisher( "/visualization_marker_array" , MarkerArray , queue_size=1 , latch=True )
             frontiersPub.publish( frontier_markerArray )
+
+            nav_occupancy_grid = {'info' : data.info,
+                            'header' : data.header,
+                            'data' : ExpandedOccupancyGrid}
+            occupancyGridSubscriber.navClient.auto_navigation( nav_occupancy_grid , map_frontiers )
+
 
 
         else : rospy.loginfo( 'Callback received but already cached' )        
