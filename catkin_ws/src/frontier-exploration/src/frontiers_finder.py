@@ -154,15 +154,12 @@ class occupancyGridSubscriber() :
             #  Transforms frontier coordinates from occupancy grid frame to map frame.
             map_frontiers = [ util.tf_occuGrid_to_map( f ) for f in frontiers ]
 
-            #  Gets centroid coordinates for each frontier cluster
-            centroids = [ util.get_centroid( f )  for f in map_frontiers ]
-
             frontiersGrid = frontiersGrid.flatten()
 
             nav_occupancy_grid = {'info' : data.info,
                                   'header' : data.header,
                                   'data' : ExpandedOccupancyGrid}
-            occupancyGridSubscriber.navClient.auto_navigation( nav_occupancy_grid , centroids , map_frontiers)
+            occupancyGridSubscriber.navClient.auto_navigation( nav_occupancy_grid , map_frontiers )
 
             #  Publishes occupancy grid of non-segmented frontier points.
             pub = rospy.Publisher( '/frontiers_map' , OccupancyGrid , queue_size=1 , latch=True )

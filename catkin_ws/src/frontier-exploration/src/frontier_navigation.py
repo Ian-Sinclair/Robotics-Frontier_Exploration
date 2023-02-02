@@ -13,7 +13,7 @@ from std_msgs.msg import Header
 from move_base_msgs.msg import MoveBaseAction, MoveBaseGoal
 from threading import Thread
 from visualization_msgs.msg import Marker, MarkerArray
-from nav_msgs.msg import OccupancyGrid as OG
+from nav_msgs.msg import OccupancyGrid
 from geometry_msgs.msg import Point, PoseArray, Pose
 
 import tf2_geometry_msgs
@@ -78,29 +78,36 @@ class navigation() :
         x,y=self.transform_pose(x,y , 'base_footprint')
         self.coordinate_callback(x=x,y=y)
 
-    def auto_navigation(self, OccupancyGrid, centroids, clusters ) :
+    def auto_navigation(self, Occupancy_grid, map_frontiers ) :
         '''
             1) Get position of the robot
             2) Filter centroids and extract new goal
             3) Determine if goal should be updated or not
         '''
-
+        #  Gets centroid coordinates for each frontier cluster
+        centroids = [ util.get_centroid( f )  for f in map_frontiers ]
 
         navigation.cache['robot_position'] = self.init_frame_listener(source='map' , target='base_footprint')
         p,q=navigation.cache['robot_position'].transform.translation.x,navigation.cache['robot_position'].transform.translation.y
-        grid_goal = util.tf_map_to_occuGrid([(p,q)])[0]
+        grid_goal = util.tf_map_to_occuGrid([(q,p)])[0]
         centroid_RviZ = MarkerArray()
 
         grid_goals = util.tf_map_to_occuGrid(centroids)
 
-        paths, heatmap = util.ExpandingWaveForm(OccupancyGrid.data, grid_goal , grid_goals)
-        
 
+        cc = [(y,x) for x,y in grid_goals]
+        paths, heatmap = util.ExpandingWaveForm(Occupancy_grid['data'], grid_goal , cc)
+        # paths = { centroid : (distance to robot , path list) }
 
         #  Publishes occupancy grid of non-segmented frontier points.
-        #heatmap = heatmap.flatten()
-        #pub = rospy.Publisher( '/energy_map' , OccupancyGrid , queue_size=1 , latch=True )
-        #pub.publish( OccupancyGrid.header, OccupancyGrid.info , heatmap )
+        for key,sum_and_path in paths.items() :
+            for i,j in sum_and_path[1] : 
+                heatmap[i][j] = 100
+        heatmap = heatmap.flatten()
+        for i,v in enumerate(heatmap) : 
+            if v > 100 : heatmap[i] = 100
+        pub = rospy.Publisher( '/energy_map' , OccupancyGrid , queue_size=1 , latch=True )
+        pub.publish( Occupancy_grid['header'], Occupancy_grid['info'] , heatmap )
 
 
         maxi = 10000
@@ -108,13 +115,13 @@ class navigation() :
             if path[0]<maxi :
                 maxi = path[0]
                 goal = key
-        
+        '''
         goal = util.tf_occuGrid_to_map([goal])[0]
         a,b = goal
         goal = self.transform_pose(a,b , source = 'map', target_frame='base_footprint')
         x,y = goal.position.x , goal.position.y
         #self.coordinate_callback( x , y )
-            
+        ''' 
 
         centroid_RviZ.markers = [
                                 self.convert_marker( points=[f],
@@ -206,19 +213,4 @@ class navigation() :
             return out_pose.pose
         except :
             raise
-
-
-
-    def pose_transform(self, pose_array, target_frame='odom'):
-        ''' pose_array: will be transformed to target_frame '''
-        trans = self.get_transform( pose_array.header.frame_id, target_frame )
-        new_header = Header(frame_id=target_frame, stamp=pose_array.header.stamp) 
-        pose_array_transformed = PoseArray(header=new_header)
-        for pose in pose_array.poses:
-            pose_s = PoseStamped(pose=pose, header=pose_array.header)
-            pose_t = tf2_geometry_msgs.do_transform_pose(pose_s, trans)
-            pose_array_transformed.poses.append( pose_t.pose )
-        return pose_array_transformed
-
-
 

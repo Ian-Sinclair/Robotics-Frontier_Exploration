@@ -3,7 +3,7 @@
 import numpy as np
 import rospy
 import random
- from geometry_msgs.msg import Point, PoseArray, Pose
+from geometry_msgs.msg import Point, PoseArray, Pose
 '''
     Helper file to frontiers_finder.py
 '''
@@ -366,12 +366,24 @@ def ExpandingWaveForm(Grid, start : tuple, goals : list) :
         kernel_size = (1,1)
         kernel = [(i,j) for i in range(-kernel_size[0] , kernel_size[0]+1) for j in range(-kernel_size[1] , kernel_size[1]+1)]
         kernel.remove((0,0))
+        #kernel = [(0,-1),(0,1),(1,0),(-1,0)]
         x,y = point
-        return [(x+a,y+b) for a,b in kernel if (0<= (x+a) < width) and (0<= (y+b) < height) and Grid[x+a][y+b] != 100]
+        neighbors = []
+        for a,b in kernel :
+            if (0<= (x+a) < width) and (0<= (y+b) < height) :
+                if Grid[x+a][y+b] != 100 :
+                    neighbors += [(x+a,y+b)]
+                else :
+                    energyMap[x+a][y+b] = 1000
+        return neighbors
     
     def weight( Grid , a , b ) :
         # weights path additions based on the restricting cspace
+        if Grid[a][b] == -1 :
+            return 5
         filter = [(0,2),(0,-2),(2,0),(-2,0)]
+        kernel_size = (3,3)
+        filter = [(i,j) for i in range(-kernel_size[0] , kernel_size[0]+1) for j in range(-kernel_size[1] , kernel_size[1]+1)]
         return max( len([Grid[a+s][b+t] for s,t in filter if (0<= (a+s) < width) and (0<= (b+t) < height) and Grid[a+s][b+t]==100]) , 1 )
     
     def extract_path(HeatMap , origin , goal) :
@@ -380,7 +392,7 @@ def ExpandingWaveForm(Grid, start : tuple, goals : list) :
             kernel = [(i,j) for i in range(-kernel_size[0] , kernel_size[0]+1) for j in range(-kernel_size[1] , kernel_size[1]+1)]
             kernel.remove((0,0))
             x,y = location
-            return [(x+a,y+b) for a,b in kernel if HeatMap[x+a][y+b]!=0 or (x+a,y+b) == origin]
+            return [(x+a,y+b) for a,b in kernel if HeatMap[x+a][y+b] != 0 or (x+a,y+b) == origin]
 
         i,j = goal
         path = [(i,j)]
@@ -404,20 +416,25 @@ def ExpandingWaveForm(Grid, start : tuple, goals : list) :
     paths = {}
     width,height = Grid.shape
     copy_goals = [x for x in goals]
-    energyMap = np.zeros(Grid.shape)
+    found_goals = []
+    default_value = 0
+    energyMap = np.full(Grid.shape, fill_value=default_value , dtype=int)
+    x,y = start
     energyMap[start] = 1
     queue = [start]
     while len(copy_goals) > 0 and len(queue) > 0 :
         anchor = queue.pop()
         x,y = anchor
         if anchor in copy_goals :
-            paths[anchor] = extract_path(energyMap , start , anchor)
+            found_goals += [anchor]
             copy_goals.remove( anchor )
 
-        successors = [x for x in get_neighbors(Grid, anchor) if x not in queue and energyMap[x] == 0]
+        successors = [tup for tup in get_neighbors(Grid, (x,y)) if tup not in queue and energyMap[tup[0]][tup[1]] == default_value]
         for a,b in successors :
             energyMap[a][b] = energyMap[x][y] + weight(Grid, a,b)
         queue = sorted(successors + queue, key=lambda x: energyMap[x[0]][x[1]], reverse=True )
+    for anchor in found_goals :
+        paths[anchor] = extract_path( energyMap , start , anchor )
     return paths, energyMap
 
 
