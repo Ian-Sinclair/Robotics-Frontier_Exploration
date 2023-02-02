@@ -129,7 +129,7 @@ class occupancyGridSubscriber() :
 
             if len(frontiersPoints) == 0 :
                 rospy.loginfo('MAP EXPLORED: Returning To Origin')
-                occupancyGridSubscriber.navClient.pushGoal( x=0 , y=0 )
+                occupancyGridSubscriber.navClient.pushGoal_max_priority( x=0 , y=0 )
                 return None
 
             #  Remove outlier points and false frontiers.
@@ -159,7 +159,10 @@ class occupancyGridSubscriber() :
 
             frontiersGrid = frontiersGrid.flatten()
 
-            occupancyGridSubscriber.navClient.auto_navigation( ExpandedOccupancyGrid , centroids , map_frontiers)
+            nav_occupancy_grid = {'info' : data.info,
+                                  'header' : data.header,
+                                  'data' : ExpandedOccupancyGrid}
+            occupancyGridSubscriber.navClient.auto_navigation( nav_occupancy_grid , centroids , map_frontiers)
 
             #  Publishes occupancy grid of non-segmented frontier points.
             pub = rospy.Publisher( '/frontiers_map' , OccupancyGrid , queue_size=1 , latch=True )
@@ -267,6 +270,7 @@ def convert_marker(points = None,
 
 
 if __name__ == '__main__' :
+    # add flags to enable or disable auto navigation and type of utility selection, etc...
     grid = occupancyGridSubscriber()
 
 

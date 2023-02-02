@@ -1,7 +1,9 @@
 #!/usr/bin/env python
 
 import numpy as np
- 
+import rospy
+import random
+ from geometry_msgs.msg import Point, PoseArray, Pose
 '''
     Helper file to frontiers_finder.py
 '''
@@ -365,13 +367,12 @@ def ExpandingWaveForm(Grid, start : tuple, goals : list) :
         kernel = [(i,j) for i in range(-kernel_size[0] , kernel_size[0]+1) for j in range(-kernel_size[1] , kernel_size[1]+1)]
         kernel.remove((0,0))
         x,y = point
-        return [(x+a,y+b) for a,b in kernel if Grid[x+a][y+b] != 100]
+        return [(x+a,y+b) for a,b in kernel if (0<= (x+a) < width) and (0<= (y+b) < height) and Grid[x+a][y+b] != 100]
     
     def weight( Grid , a , b ) :
         # weights path additions based on the restricting cspace
         filter = [(0,2),(0,-2),(2,0),(-2,0)]
-        #return max( len([Grid[a+s][b+t] for s,t in filter if Grid[a+s][b+t]==100]) , 1 )
-        return 1
+        return max( len([Grid[a+s][b+t] for s,t in filter if (0<= (a+s) < width) and (0<= (b+t) < height) and Grid[a+s][b+t]==100]) , 1 )
     
     def extract_path(HeatMap , origin , goal) :
         def get_path_neighbors(HeatMap , location) :
@@ -387,7 +388,7 @@ def ExpandingWaveForm(Grid, start : tuple, goals : list) :
         while (i,j) != origin :
             count += 1
             if count > 1000 :
-                print('Timeout ERROR: expanding waveform in util path exceeding maximum depth')
+                rospy.logerr('Timeout ERROR: expanding waveform in util.py path exceeding maximum depth')
                 return None
             neighbors = [x for x in get_path_neighbors(HeatMap , (i,j)) if x not in path]
             i,j = neighbors[0]
@@ -401,6 +402,7 @@ def ExpandingWaveForm(Grid, start : tuple, goals : list) :
 
 
     paths = {}
+    width,height = Grid.shape
     copy_goals = [x for x in goals]
     energyMap = np.zeros(Grid.shape)
     energyMap[start] = 1
@@ -408,18 +410,39 @@ def ExpandingWaveForm(Grid, start : tuple, goals : list) :
     while len(copy_goals) > 0 and len(queue) > 0 :
         anchor = queue.pop()
         x,y = anchor
-        # check if anchor is goal, if it is find the path back to start.
         if anchor in copy_goals :
             paths[anchor] = extract_path(energyMap , start , anchor)
             copy_goals.remove( anchor )
 
         successors = [x for x in get_neighbors(Grid, anchor) if x not in queue and energyMap[x] == 0]
-        if len(successors) > 10 :
-            print(len(successors))
         for a,b in successors :
             energyMap[a][b] = energyMap[x][y] + weight(Grid, a,b)
-        queue = successors + queue
+        queue = sorted(successors + queue, key=lambda x: energyMap[x[0]][x[1]], reverse=True )
     return paths, energyMap
+
+
+
+def random_entropy_sample(OccupancyGrid, clusters, centroids, encloser_size = 20, sample_size=10, sample_rate = 50) :
+    entropy = {}
+    entropy_map={ -1 : 1,
+                  0 : 0,
+                 100 : 0}
+    encloser = [(a,b) for a in range(-int(encloser_size/2),int(encloser_size/2)) for b in range(-int(encloser_size/2),int(encloser_size/2))]
+    for cluster, centroid in zip(clusters , centroids) :
+        H_sample = 0
+        sample = np.random.choice(cluster , size = sample_size, replace = False)
+        for i,j in sample :
+            focus = np.random.choice(encloser , size = sample_rate, replace=False)
+            H_sample += sum([entropy_map( OccupancyGrid[i+a][j+b] ) for a,b in focus ])/sample_rate
+        entropy[centroid] = H_sample
+    return entropy
+            
+
+
+
+
+
+
 
 
 
@@ -429,6 +452,18 @@ def utility(Grid, robot_pos, centroids) :
 
 
 
+
+
+def to_pose(x = 0, y = 0, z = 0, w = 1, nx = 0, ny = 0, nz = 1) :
+    pose = Pose()
+    pose.position.x = x
+    pose.position.y = y
+    pose.position.z = z
+    pose.orientation.x = nx
+    pose.orientation.y = ny
+    pose.orientation.z = nz
+    pose.orientation.w = w
+    return pose
 
 
 

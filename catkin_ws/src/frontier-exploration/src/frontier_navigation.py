@@ -7,6 +7,9 @@ import actionlib
 from moveActionClient import moveActionClient
 
 
+from geometry_msgs.msg import Pose, Point, Quaternion, PoseArray, PoseStamped
+from std_msgs.msg import Header
+
 from move_base_msgs.msg import MoveBaseAction, MoveBaseGoal
 from threading import Thread
 from visualization_msgs.msg import Marker, MarkerArray
@@ -26,7 +29,7 @@ class navigation() :
         rospy.init_node('Frontier Navigation')
 
 
-    def init_robot_frame_listener(self) :
+    def init_frame_listener(self , source = 'map' , target = 'base_footprint') :
         self.tfBuffer = tf2_ros.Buffer()
         listener = tf2_ros.TransformListener(self.tfBuffer)
 
@@ -34,7 +37,7 @@ class navigation() :
         count = 0
         while not rospy.is_shutdown() :
             try:
-                trans = self.tfBuffer.lookup_transform('map', 'base_footprint', rospy.Time(0))
+                trans = self.tfBuffer.lookup_transform(source, target, rospy.Time(0))
                 return trans
             except (tf2_ros.LookupException, tf2_ros.ConnectivityException, tf2_ros.ExtrapolationException) :
                 rate.sleep()
@@ -63,21 +66,14 @@ class navigation() :
             then sends that translation to the robot with respect to
             the base_footprint frame.
         '''
-        pose = Pose()
-        pose.position.x = x
-        pose.position.y = y
-        pose.position.z = z
-        pose.orientation.x = nx
-        pose.orientation.y = ny
-        pose.orientation.z = nz
-        pose.orientation.w = w
+        pose = util.to_pose(x,y,z,w,nx,ny,nz)
         goal = MoveBaseGoal()
         goal.target_pose.header.frame_id = 'base_footprint'
         goal.target_pose.pose = pose
         self.client.send_goal(goal)
         self.client.wait_for_result() # Note sure wait for result is what I want
     
-    def pushGoal(self,x,y) :
+    def pushGoal_max_priority(self,x,y) :
         self.client.cancel_all_goals()
         x,y=self.transform_pose(x,y , 'base_footprint')
         self.coordinate_callback(x=x,y=y)
@@ -90,48 +86,53 @@ class navigation() :
         '''
 
 
-        navigation.cache['robot_position'] = self.init_robot_frame_listener()
-        goal = (0.5,0.5)
-        if goal != None :
-            
-            p,q=navigation.cache['robot_position'].transform.translation.x,navigation.cache['robot_position'].transform.translation.y
-            grid_goal = util.tf_map_to_occuGrid([(p,q)])[0]
-            centroid_RviZ = MarkerArray()
+        navigation.cache['robot_position'] = self.init_frame_listener(source='map' , target='base_footprint')
+        p,q=navigation.cache['robot_position'].transform.translation.x,navigation.cache['robot_position'].transform.translation.y
+        grid_goal = util.tf_map_to_occuGrid([(p,q)])[0]
+        centroid_RviZ = MarkerArray()
 
-            grid_goals = util.tf_map_to_occuGrid(centroids)
+        grid_goals = util.tf_map_to_occuGrid(centroids)
 
-            paths, heatmap = util.ExpandingWaveForm(OccupancyGrid, grid_goal , grid_goals)
-            
-            maxi = 10000
-            for key,path in paths.items() :
-                if path[0]<maxi :
-                    maxi = path[0]
-                    goal = key
-            
-            goal = util.tf_occuGrid_to_map([goal])[0]
-            a,b = goal
-            #goal = self.transform_pose(a,b , 'base_footprint')
-            x,y = goal.position.x , goal.position.y
-            self.coordinate_callback( x , y )
-                
+        paths, heatmap = util.ExpandingWaveForm(OccupancyGrid.data, grid_goal , grid_goals)
+        
 
-            centroid_RviZ.markers = [
-                                    self.convert_marker( points=[f],
-                                                    r=0,
-                                                    g=1,
-                                                    b=0, 
-                                                    z=1,
-                                                    id=i,
-                                                    sx=0.25,
-                                                    sy=0.25,
-                                                    sz=0.25, 
-                                                    type=7,
-                                                    namespace='centroids' ) 
-                                                    for i,f in enumerate(centroids)
-                                                    ]
+
+        #  Publishes occupancy grid of non-segmented frontier points.
+        #heatmap = heatmap.flatten()
+        #pub = rospy.Publisher( '/energy_map' , OccupancyGrid , queue_size=1 , latch=True )
+        #pub.publish( OccupancyGrid.header, OccupancyGrid.info , heatmap )
+
+
+        maxi = 10000
+        for key,path in paths.items() :
+            if path[0]<maxi :
+                maxi = path[0]
+                goal = key
+        
+        goal = util.tf_occuGrid_to_map([goal])[0]
+        a,b = goal
+        goal = self.transform_pose(a,b , source = 'map', target_frame='base_footprint')
+        x,y = goal.position.x , goal.position.y
+        #self.coordinate_callback( x , y )
             
-            frontiersPub = rospy.Publisher( "/visualization_marker_array" , MarkerArray , queue_size=1 , latch=True )
-            frontiersPub.publish( centroid_RviZ )
+
+        centroid_RviZ.markers = [
+                                self.convert_marker( points=[f],
+                                                r=0,
+                                                g=1,
+                                                b=0, 
+                                                z=1,
+                                                id=i,
+                                                sx=0.25,
+                                                sy=0.25,
+                                                sz=0.25, 
+                                                type=7,
+                                                namespace='centroids' ) 
+                                                for i,f in enumerate(centroids)
+                                                ]
+        
+        frontiersPub = rospy.Publisher( "/visualization_marker_array" , MarkerArray , queue_size=1 , latch=True )
+        frontiersPub.publish( centroid_RviZ )
 
 
 
@@ -191,13 +192,8 @@ class navigation() :
 
         return marker
 
-
-
-
-
-
-
-    def transform_pose( self, x , y , target_frame ) :
+    def transform_pose( self , x , y , source = 'map', target_frame = 'base_footprint') :
+        trans = self.init_frame_listener(source , target_frame)
 
         pose = tf2_geometry_msgs.PoseStamped()
         pose.pose.position.x = x
@@ -206,12 +202,23 @@ class navigation() :
         pose.header.stamp = rospy.Time.now()
 
         try :
-            output_pose = self.tfBuffer.transform(pose, target_frame, timeout=rospy.Duration(1))
-            return output_pose.pose
-            
-        except (tf2_ros.LookupException, tf2_ros.ConnectivityException, tf2_ros.ExtrapolationException):
+            out_pose = tf2_geometry_msgs.do_transform_pose(pose, trans)
+            return out_pose.pose
+        except :
             raise
 
-        
+
+
+    def pose_transform(self, pose_array, target_frame='odom'):
+        ''' pose_array: will be transformed to target_frame '''
+        trans = self.get_transform( pose_array.header.frame_id, target_frame )
+        new_header = Header(frame_id=target_frame, stamp=pose_array.header.stamp) 
+        pose_array_transformed = PoseArray(header=new_header)
+        for pose in pose_array.poses:
+            pose_s = PoseStamped(pose=pose, header=pose_array.header)
+            pose_t = tf2_geometry_msgs.do_transform_pose(pose_s, trans)
+            pose_array_transformed.poses.append( pose_t.pose )
+        return pose_array_transformed
+
 
 
