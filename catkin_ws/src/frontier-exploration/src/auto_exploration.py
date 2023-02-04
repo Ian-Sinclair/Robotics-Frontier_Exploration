@@ -41,7 +41,6 @@ class navigation() :
 
     def init_Subscriber( self ) -> None :
         rospy.Subscriber("map", OccupancyGrid, self.occupancy_grid_callback)
-        #rospy.spin()
     
 
     def init_frame_listener(self , source = 'map' , target = 'base_footprint') -> None :
@@ -67,24 +66,6 @@ class navigation() :
         '''
         self.navigation_client = actionlib.SimpleActionClient('/move_base', MoveBaseAction)
         self.navigation_client.wait_for_server()
-
-    def navigation_callback(self, pose : Pose = None , x = 0, y = 0, z = 0, w = 1, nx = 0, ny = 0, nz = 1) :
-        '''
-            Creates a pose variable with translation information,
-            then sends that translation to the robot with respect to
-            the base_footprint frame.
-        '''
-        if pose == None : pose = util.to_pose( x , y , z , w , nx , ny , nz )
-        goal = MoveBaseGoal()
-        goal.target_pose.header.frame_id = 'base_footprint'
-        goal.target_pose.pose = pose
-
-        self.navigation_client.send_goal(   goal, 
-                                            done_cb = self.done_nav_callback , 
-                                            active_cb = self.active_nav_callback , 
-                                            feedback_cb = self.feedback_nav_callback )
-
-        #  self.navigation_client.wait_for_result() # Note sure wait for result is what I want
     
     def done_nav_callback( self , terminal_state , result ) :
         pass
@@ -116,6 +97,7 @@ class navigation() :
         try :
             while result == None and not rospy.is_shutdown() :
                 result = self.navigation_client.get_result()
+                print(self.navigation_client.get_state())
                 frontiers , expanded_occupancy_grid = self.update_frontiers( navigation.cache['incoming occupancy grid'] )
                 if frontiers != None :
                     navigation.cache['expanded occupancy grid'] = expanded_occupancy_grid
@@ -130,7 +112,7 @@ class navigation() :
                             rospy.loginfo(f'Target has {habitability} modality --> refactoring target to Habitable')
                             goal = self.reconstruct_inhabitable_target( expanded_occupancy_grid , target )
                             navigation.cache['target'] = goal
-                            self.navigation_client.stop_tracking_goal( )
+                            self.navigation_client.stop_tracking_goal()
                 
                 self.publish_goal( navigation.cache['target'] )
                 navigation.cache['robot_position'] = self.init_frame_listener(source='map' , target='base_footprint')
@@ -142,14 +124,19 @@ class navigation() :
                     break
                 rate.sleep()
             navigation.cache['target'] = None
+            self.navigation_client.stop_tracking_goal()
         except :
             raise 
 
 
     def init_auto_navigation( self ) :
+        flag_map_data_counter = 0
         while navigation.cache['incoming occupancy grid'] == None and not rospy.is_shutdown() :
             rospy.loginfo(f'......Waiting for map data.......')
             rospy.sleep(3)
+            flag_map_data_counter += 1
+            if flag_map_data_counter >= 5 : return False
+
         frontiers , expanded_occupancy_grid = self.update_frontiers( navigation.cache['incoming occupancy grid'] )
         if frontiers != None :
             if len(frontiers) == 0 : return False
@@ -160,7 +147,6 @@ class navigation() :
                 ranked_centroids, paths , _ = self.rank_centroids( frontiers , centroids, expanded_occupancy_grid )
                 navigation.cache['active centroids'] = centroids
                 navigation.cache['paths'] = paths
-                self.publish_frontiers(frontiers , centroids)
                 if ranked_centroids != None :
                     if len(ranked_centroids) == 0 : return False
                     self.publish_goal( ranked_centroids[0] )
@@ -192,8 +178,10 @@ class navigation() :
                             \t it is possible that the map is already explored')
             rospy.on_shutdown(self.no_action_shutdown)
             return False
+
         if navigation.cache['active centroids'] == None : 
             rospy.logerr(f'Cannot initialize navigation: inability to detect/segment/ and/or rank frontiers')
+
         while len( navigation.cache['active centroids'] ) > 0 and not rospy.is_shutdown() :
             if navigation.cache['target'] == None :
                 if len(navigation.cache['frontiers']) > 0 :
@@ -204,9 +192,11 @@ class navigation() :
                     navigation.cache['target'] = ranked_centroids[0]
                     navigation.cache['paths'] = paths
                     self.publish_goal( ranked_centroids[0] )
+                #self.publish_frontiers(navigation.cache['frontiers'] , navigation.cache['active centroids'])
             self.init_nav_procedure( navigation.cache['target'] )
             rospy.sleep(0)
         rospy.on_shutdown(self.shutdown)
+        return True
 
     def init_nav_procedure( self , target : tuple ) :
         x,y = util.tf_occuGrid_to_map( [ navigation.cache['target'] ] )[0]
@@ -219,11 +209,17 @@ class navigation() :
 
     def shutdown( self ) :
         rospy.loginfo(f'Navigation Complete')
+        '''
         rospy.loginfo(f'--------RETURNING TO ORIGIN----------')
-        navigation.cache['target'] = util.tf_map_to_occuGrid( [(0,0)] )
-        x,y = navigation.cache['target']
-        self.publish_goal(x,y)
-        self.init_nav_procedure( navigation.cache['target'] )
+        navigation.cache['target'] = util.tf_map_to_occuGrid( [(0,0)] )[0]
+        #x,y = navigation.cache['target']
+        self.publish_goal(navigation.cache['target'])
+        for i in range(5) :
+            self.init_nav_procedure( navigation.cache['target'] )
+            rospy.sleep(0)
+        '''
+        self.navigation_client.cancel_all_goals()
+        self.publish_deleteALLMarkers(namespace='goal')
         rospy.loginfo(f'Ending ROSPY')
         rospy.loginfo(f'Application Complete')
 
@@ -276,11 +272,9 @@ class navigation() :
                 if data.data[ i ] == 100 :  # might as well collect the location of obstacles too.
                     navigation.cache[ 'obstacle_record' ] += [ i ]
 
-
         if not sum( step_diff ) > tolerance :
             return None , None
         
-        rospy.loginfo('Updating cache')
         navigation.cache[ 'occupancy grid' ] = data
         shape = ( data.info.height , data.info.width )
         occupancyGrid = np.fromiter( data.data , int ).reshape( shape )
@@ -318,7 +312,6 @@ class navigation() :
         #  Publishes occupancy grid of non-segmented frontier points.
         pub = rospy.Publisher( '/frontiers_map' , OccupancyGrid , queue_size=1 , latch=True )
         pub.publish( data.header, data.info , frontiersGrid )
-        rospy.loginfo( 'Publishing Frontiers' )
 
         return frontiers , ExpandedOccupancyGrid
         
@@ -427,10 +420,10 @@ class navigation() :
             filter = [(i,j) for i in range(-fs[0] , fs[0]) for j in range(-fs[1] , fs[1])]
         x,y = centroid
         conv = [ (x+a,y+b) for a,b in filter if occupancy_grid[x+a][y+b] == 100 ]
-        #print(conv)
-        if len(conv)/len(filter) > 0.7 :
+
+        if len(conv)/len(filter) > 0.5 :
             return 'Granular'
-        if len(conv)/len(filter) > 0.3 :
+        if len(conv)/len(filter) > 0.15 :
             return 'Restricted'
         return 'Habitable'
 
@@ -444,7 +437,7 @@ class navigation() :
         x,y = target_centroid
         fs =(3,3)
         filter = [(i,j) for i in range(-fs[0] , fs[0]) for j in range(-fs[1] , fs[1])]
-        print(self.check_habitable(occupancy_grid , (x,y) , filter))
+        
         if self.check_habitable(occupancy_grid, (x,y) , filter) == 'Habitable' :
             return target_centroid
         
@@ -472,13 +465,13 @@ class navigation() :
                                                         b=0 , 
                                                         z = 2 ,
                                                         id=100 ,
-                                                        sx = 0.4 ,
-                                                        sy = 0.4 ,
-                                                        sz = 0.4 ,
+                                                        sx = 0.3 ,
+                                                        sy = 0.3 ,
+                                                        sz = 0.3 ,
                                                         type = 7,
                                                         namespace='goal' )
                                                         ]
-        self.publish_deleteALLMarkers(namespace='goal')
+        #self.publish_deleteALLMarkers(namespace='goal')
         GoalPublisher = rospy.Publisher( "/visualization_marker_array" , MarkerArray , queue_size=1 , latch=True )
         GoalPublisher.publish( goal_markerArray )
         return True
