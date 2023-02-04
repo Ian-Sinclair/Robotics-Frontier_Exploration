@@ -111,7 +111,7 @@ class occupancyGridSubscriber() :
                 if data.data[ i ] == 100 :  # might as well collect the location of obstacles too.
                     occupancyGridSubscriber.cache[ 'obstacle_record' ].add( i )
 
-        if len( step_diff ) > 0 :
+        if len( step_diff ) > 0 or True:
             #  Update cache with new occupancy grid
             rospy.loginfo('Updating cache')
             occupancyGridSubscriber.cache[ 'Occupancy' ] = data.data
@@ -155,6 +155,12 @@ class occupancyGridSubscriber() :
             map_frontiers = [ util.tf_occuGrid_to_map( f ) for f in frontiers ]
 
             frontiersGrid = frontiersGrid.flatten()
+
+
+            nav_occupancy_grid = {'info' : data.info,
+                            'header' : data.header,
+                            'data' : ExpandedOccupancyGrid}
+            occupancyGridSubscriber.navClient.auto_navigation( nav_occupancy_grid , map_frontiers )
 
             #  Publishes occupancy grid of non-segmented frontier points.
             pub = rospy.Publisher( '/frontiers_map' , OccupancyGrid , queue_size=1 , latch=True )
@@ -202,10 +208,6 @@ class occupancyGridSubscriber() :
             frontiersPub = rospy.Publisher( "/visualization_marker_array" , MarkerArray , queue_size=1 , latch=True )
             frontiersPub.publish( frontier_markerArray )
 
-            nav_occupancy_grid = {'info' : data.info,
-                            'header' : data.header,
-                            'data' : ExpandedOccupancyGrid}
-            occupancyGridSubscriber.navClient.auto_navigation( nav_occupancy_grid , map_frontiers )
 
 
 

@@ -23,6 +23,7 @@ class navigation() :
     cache = {'robot_position' : None, 
             'active centroids' : [],
             'goal' : None}
+    active = False
     def __init__(self) :
         self.init_action_client()
 
@@ -56,13 +57,6 @@ class navigation() :
 
     def coordinate_callback(self, x = 0, y = 0, z = 0, w = 1, nx = 0, ny = 0, nz = 1) :
         '''
-            Starts a thread for translation with coordinate callback thread function.
-        '''
-        thread = Thread(target=self.coordinate_callback_thread, args=(x, y, z, w, nx, ny, nz))
-        thread.start()
-
-    def coordinate_callback_thread(self, x = 0, y = 0, z = 0, w = 1, nx = 0, ny = 0, nz = 1) :
-        '''
             Creates a pose variable with translation information,
             then sends that translation to the robot with respect to
             the base_footprint frame.
@@ -76,14 +70,14 @@ class navigation() :
 
         self.client.wait_for_result() # Note sure wait for result is what I want
     
-    def done_callback() :
+    def done_callback(self , terminal_state , result) :
         # Get next centroid target....
-        pass
-    def active_callback() :
+        navigation.active = False
+    def active_callback(self) :
         #  callback that activated as soon as a goal is received...
         #  remove centroid from list of centroids
-        pass
-    def feedback_callback() :
+        navigation.active = True 
+    def feedback_callback(self , feedback) :
         pass
 
 
@@ -91,7 +85,7 @@ class navigation() :
         #  if a centroid is unreachable, cast rays around it until you find something that looks reachable...
         #  Probably can use the wavefront path...
         pass
-
+ 
 
     def pushGoal_max_priority(self,x,y) :
         self.client.cancel_all_goals()
@@ -123,6 +117,17 @@ class navigation() :
         # centroids_entropy = { centroid : map entropy around cluster corresponding to centroid }
 
         centroids_utility = sorted( centroid_grid_poses , key = lambda centroid : centroids_entropy[centroid]/paths[centroid][0] )
+
+        centroids_utility_map_frame = util.tf_occuGrid_to_map(centroids_utility)
+
+        x,y = centroids_utility_map_frame[0]
+
+        pose = self.transform_pose(x,y , source='map' , target_frame= 'base_footprint')
+
+        x,y = pose.position.x, pose.position.y
+
+        if navigation.active == False :
+            self.coordinate_callback(y,x)
 
 
         #  Publishes occupancy grid of non-segmented frontier points.

@@ -356,7 +356,7 @@ def connection_component_analysis( grid, array, kernel_size : tuple ) :
 
 
 def get_centroid(points_array) :
-    return (sum([a[0] for a in points_array])/len(points_array), sum([b[1] for b in points_array])/len(points_array))
+    return (int(sum([a[0] for a in points_array])/len(points_array)), int(sum([b[1] for b in points_array])/len(points_array)))
 
     
 
@@ -364,17 +364,14 @@ def get_centroid(points_array) :
 def ExpandingWaveForm(Grid, start : tuple, goals : list) :
     def get_neighbors(Grid, point) :
         kernel_size = (1,1)
-        kernel = [(i,j) for i in range(-kernel_size[0] , kernel_size[0]+1) for j in range(-kernel_size[1] , kernel_size[1]+1)]
-        kernel.remove((0,0))
-        #kernel = [(0,-1),(0,1),(1,0),(-1,0)]
+        #kernel = [(i,j) for i in range(-kernel_size[0] , kernel_size[0]+1) for j in range(-kernel_size[1] , kernel_size[1]+1)]
+        #kernel.remove((0,0))
+        kernel = [(0,-1),(0,1),(1,0),(-1,0)]
         x,y = point
         neighbors = []
         for a,b in kernel :
             if (0<= (x+a) < width) and (0<= (y+b) < height) :
-                if Grid[x+a][y+b] != 100 :
-                    neighbors += [(x+a,y+b)]
-                else :
-                    energyMap[x+a][y+b] = 1000
+                neighbors += [(x+a,y+b)]
         return neighbors
     
     def weight( Grid , a , b ) :
@@ -384,7 +381,7 @@ def ExpandingWaveForm(Grid, start : tuple, goals : list) :
         filter = [(0,2),(0,-2),(2,0),(-2,0)]
         kernel_size = (3,3)
         filter = [(i,j) for i in range(-kernel_size[0] , kernel_size[0]+1) for j in range(-kernel_size[1] , kernel_size[1]+1)]
-        return max( len([Grid[a+s][b+t] for s,t in filter if (0<= (a+s) < width) and (0<= (b+t) < height) and Grid[a+s][b+t]==100]) , 1 )
+        return max( len([Grid[a+s][b+s] for s,t in filter if (0<= (a+s) < width) and (0<= (b+t) < height) and Grid[a+s][b+t]==100]) , 1 )
     
     def extract_path(HeatMap , origin , goal) :
         def get_path_neighbors(HeatMap , location) :
@@ -410,6 +407,7 @@ def ExpandingWaveForm(Grid, start : tuple, goals : list) :
                     minimum = HeatMap[i][j]
                     i,j = a,b
             path += [(i,j)]
+            rospy.sleep(0)
         return (sum([HeatMap[i][j] for i,j in path]) , path)
 
 
@@ -420,8 +418,8 @@ def ExpandingWaveForm(Grid, start : tuple, goals : list) :
     default_value = 0
     energyMap = np.full(Grid.shape, fill_value=default_value , dtype=int)
     x,y = start
-    energyMap[start] = 1
-    queue = [start]
+    energyMap[x][y] = 1
+    queue = [(x,y)]
     while len(copy_goals) > 0 and len(queue) > 0 :
         anchor = queue.pop()
         x,y = anchor
@@ -433,6 +431,7 @@ def ExpandingWaveForm(Grid, start : tuple, goals : list) :
         for a,b in successors :
             energyMap[a][b] = energyMap[x][y] + weight(Grid, a,b)
         queue = sorted(successors + queue, key=lambda x: energyMap[x[0]][x[1]], reverse=True )
+        rospy.sleep(0)
     for anchor in found_goals :
         paths[anchor] = extract_path( energyMap , start , anchor )
     return paths, energyMap
@@ -444,12 +443,11 @@ def random_entropy_sample(OccupancyGrid, clusters, centroids, encloser_size = 40
     entropy_map={ -1 : 1,
                   0 : 0,
                  100 : 0}
-    cluster = np.array(clusters)
     encloser = [(a,b) for a in range(-int(encloser_size/2),int(encloser_size/2)) for b in range(-int(encloser_size/2),int(encloser_size/2))]
     for cluster, centroid in zip(clusters , centroids) :
         H_sample = 0
         sample_index = np.random.choice(len(cluster)-1 , size = min(sample_size , len(cluster)-1) , replace = False)
-        sample = tf_map_to_occuGrid( [cluster[i] for i in sample_index] )
+        sample = [cluster[i] for i in sample_index]
         for i,j in sample :
             focus_index = np.random.choice(len(encloser) , size = sample_rate, replace=False)
             focus = [encloser[k] for k in focus_index]
