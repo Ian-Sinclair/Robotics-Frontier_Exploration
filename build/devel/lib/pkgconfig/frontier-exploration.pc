@@ -1,0 +1,8 @@
+prefix=/home/iansinclair/github/COMP-4510-project-2/build/devel
+
+Name: frontier-exploration
+Description: Description of frontier-exploration
+Version: 0.0.0
+Cflags: 
+Libs: -L${prefix}/lib 
+Requires: 
