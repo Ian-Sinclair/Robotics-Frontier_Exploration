@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+import math
 import util
 import numpy as np
 import random
@@ -12,7 +13,7 @@ from std_msgs.msg import Header
 from move_base_msgs.msg import MoveBaseAction, MoveBaseGoal
 from visualization_msgs.msg import Marker, MarkerArray
 from nav_msgs.msg import OccupancyGrid
-
+from tf.transformations import euler_from_quaternion, quaternion_from_euler
 
 
 
@@ -37,18 +38,40 @@ class navigation() :
         self.auto_navigation()
 
     def init_node( self ) -> None :
+        #  Inits navigation node (single node for all frontier navigation behavior)
         rospy.init_node( 'frontiers_exploration' , anonymous = True )
 
+
     def init_Subscriber( self ) -> None :
+        #  Subscribes to map
+        #  --> takes occupancy grid --> updated at self.occupancy_grid_callback
         rospy.Subscriber("map", OccupancyGrid, self.occupancy_grid_callback)
     
 
     def init_frame_listener(self , source = 'map' , target = 'base_footprint') -> None :
+        """Summary
+        -
+            Searches for a transformation from the source frame to the target frame.
+            Returns a transformation object that can be used to switch points.
+            Note: for default values source = 'map' and target = 'base_footprint'
+            the translation of the transformation is the location of the robot in the
+            map frame.
+
+        Args:
+        -
+            source (str, optional): Original frame. Defaults to 'map'.
+            target (str, optional): Target frame. Defaults to 'base_footprint'.
+
+        Returns:
+        -
+            _type_: Transformation object taking source frame to target frame
+        """        
         self.tfBuffer = tf2_ros.Buffer()
         listener = tf2_ros.TransformListener(self.tfBuffer)
 
         rate = rospy.Rate(10.0)
         count = 0
+        #  Tries to lookup transform matrix for a a maximum of 200 times.
         while not rospy.is_shutdown() :
             try:
                 trans = self.tfBuffer.lookup_transform(source, target, rospy.Time(0))
@@ -60,28 +83,79 @@ class navigation() :
                     rospy.logerr('ERROR: Could not find map to base_footprint transform')
                 continue
 
+
     def init_action_client(self) :
-        '''
-            Initializes rospy action client to /move_base topic.
-        '''
+        """Summary
+        -
+            Initializes action client, called navigation_client, on the /move_base topic.
+        """
         self.navigation_client = actionlib.SimpleActionClient('/move_base', MoveBaseAction)
         self.navigation_client.wait_for_server()
-    
+
+
     def done_nav_callback( self , terminal_state , result ) :
+        """Summary
+        -
+            is called once action client completes/fails a goal
+
+        Args:
+            terminal_state (_type_): state of the client at the end of navigation
+            result (_type_): success/failure
+        """        
         pass
     def active_nav_callback( self ) :
-        #  callback that activated as soon as a goal is received...
-        #  remove centroid from list of centroids
+        """Summary
+        -
+            Is called once when action client gets a new goal
+        """        
         pass
     def feedback_nav_callback( self , feedback ) :
+        """Summary
+        -
+            Is called continuously while the action client is navigating
+        Args:
+            feedback (_type_): state of the action client while navigating
+        """        
         pass
 
+
     def occupancy_grid_callback( self , data ) :
+        """Summary
+        -
+            Takes incoming occupancy grid data and updates a cached object
+            <navigation.cache['incoming occupancy grid']>
+            This is later checked against navigation.cache['incoming occupancy grid']
+            to check for updates in the map information.
+
+        Args:
+            data (OccupancyGrid): Map information containing .header, .info and .data
+        """        
         rospy.loginfo(f'Map callback received')
         navigation.cache['incoming occupancy grid'] = data
 
 
     def navigation_client_push_goal(self, pose : Pose = None , x = 0, y = 0, z = 0, w = 1, nx = 0, ny = 0, nz = 1) :
+        """Summary
+        -
+            Takes a target position in the base_footprint frame (either in the form of a pose object
+            or positional arguments).
+            Sends the goal to the navigation client
+            Then waits for the result of the navigation attempt.
+            NOTE: This is a non blocking wait, and so while waiting
+                a pipeline that updates frontier and goal information will be
+                running.
+                <self.wait_for_result_non_stalled>
+
+        Args:
+            pose (Pose, optional): Pose type object containing goal information in base_footprint frame. Defaults to None.
+            x (int, optional): translation in x (base_footprint frame). Defaults to 0.
+            y (int, optional): translation in y (base_footprint frame). Defaults to 0.
+            z (int, optional): translation in z (base_footprint frame). Defaults to 0.
+            w (int, optional): quaternion in w (base_footprint frame). Defaults to 1.
+            nx (int, optional): quaternion in x (base_footprint frame). Defaults to 0.
+            ny (int, optional): quaternion in y (base_footprint frame). Defaults to 0.
+            nz (int, optional): quaternion in z (base_footprint frame). Defaults to 1.
+        """        
         if pose == None : pose = util.to_pose( x , y , z , w , nx , ny , nz )
         goal = MoveBaseGoal()
         goal.target_pose.header.frame_id = 'base_footprint'
@@ -92,44 +166,112 @@ class navigation() :
 
 
     def wait_for_result_non_stalled( self ) :
-        rate = rospy.Rate(10.0)
+        """Summary
+        -
+            Given that the navigation client has a goal, this waiting function
+            runs a pipeline to check for map updates, then updates information about
+            frontiers and centroids then publishes new markers.
+            Also, checks the quality of the current goal mid-flight:
+
+        Procedure
+        -
+            1) Checks if the goal has been reached or terminated
+            2) Checks if there is any new map information
+                2.a) If yes: Updates cache values for frontiers and centroids.
+                2.b) If yes: Uses the new map information to determine of the current
+                             goal is still applicable / high quality.
+                             (This is done by checking its habitability or rather the 
+                             density of surrounding walls)
+                             2.b.a) If the current goal is found to be restricted, it will be moved
+                                    along the safest path to the robot until its habitable. Or halfway along
+                                    the safest path to the robot if no other habitable location is possible.
+                2.c) If No: Do nothing
+            3) Checks if the base_frame is within a tolerable limit of the goal
+                3.a) If yes: stop tracking goal and exit waiting pipeline
+                3.b) If No: No nothing
+        """        
+        rate = rospy.Rate( 10.0 )
         result = None
         try :
+            #  Iterates until goal is reached or plan terminated
             while result == None and not rospy.is_shutdown() :
+
+                #  Updates cache with new information is available
                 result = self.navigation_client.get_result()
-                print(self.navigation_client.get_state())
-                frontiers , expanded_occupancy_grid = self.update_frontiers( navigation.cache['incoming occupancy grid'] )
+                frontiers , expanded_occupancy_grid = self.update_frontiers( navigation.cache[ 'incoming occupancy grid' ] )
+
                 if frontiers != None :
-                    navigation.cache['expanded occupancy grid'] = expanded_occupancy_grid
-                    navigation.cache['frontiers'] = frontiers
+
+                    #  If there are new frontier locations, find their centroids and update cache
+                    navigation.cache[ 'expanded occupancy grid' ] = expanded_occupancy_grid
+                    navigation.cache[ 'frontiers' ] = frontiers
                     centroids = self.update_centroids( frontiers )
+
                     if centroids != None :
-                        navigation.cache['active centroids'] = centroids
-                        self.publish_frontiers(frontiers , centroids)
-                        target = navigation.cache['target']
-                        habitability = self.check_habitable(expanded_occupancy_grid , target  )
+
+                        #  If finding centroids was successful, publish all new information as markers to map
+                        navigation.cache[ 'active centroids' ] = centroids
+                        self.publish_frontiers( frontiers , centroids )
+
+                        #  Because new information is known about the map
+                        #  we may learn about new challenges impacting the robots
+                        #  ability to reach the goal.
+                        #  Here the habitability of the goal is checked,
+                        #  Or rather how easy it is for the robot to reach the goal
+                        #  If its difficult to reach, the goal is moved to something easier.
+                        target = navigation.cache[ 'target' ]
+                        habitability = self.check_habitable( expanded_occupancy_grid , target  )
                         if habitability != 'Habitable' :
-                            rospy.loginfo(f'Target has {habitability} modality --> refactoring target to Habitable')
+                            rospy.loginfo(f'Target has {habitability} modality --> refactoring target to nearest Habitable zone')
+                            #  Retrieves the nearest habitable goal
                             goal = self.reconstruct_inhabitable_target( expanded_occupancy_grid , target )
-                            navigation.cache['target'] = goal
+                            navigation.cache[ 'target' ] = goal
                             self.navigation_client.stop_tracking_goal()
                 
-                self.publish_goal( navigation.cache['target'] )
+                self.publish_goal( navigation.cache[ 'target' ] )
+
+                #  Checks if the robot is sufficiently close to the goal
+                #  If it is, exits pipeline.
                 navigation.cache['robot_position'] = self.init_frame_listener(source='map' , target='base_footprint')
                 if self.epsilon_containment(navigation.cache['robot_position'] , util.tf_occuGrid_to_map( [navigation.cache['target'] ])[0], 0.2 ) :
-                    rospy.loginfo(f'-------------------------------------------------------------')
-                    #self.navigation_client.cancel_all_goals()
+                    x,y = navigation.cache[ 'target' ]
+                    rospy.loginfo(f'------------------------------------------')
+                    rospy.loginfo(f'------ Goal at ({x} , {y}) Reached -------')
+                    rospy.loginfo(f'------------------------------------------')
                     self.navigation_client.stop_tracking_goal()
-                    navigation.cache['target'] = None
+                    navigation.cache[ 'target' ] = None
                     break
                 rate.sleep()
-            navigation.cache['target'] = None
+            
+            #  Exit condition when goal is found
+            navigation.cache[ 'target' ] = None
             self.navigation_client.stop_tracking_goal()
         except :
             raise 
 
 
     def init_auto_navigation( self ) :
+        """Summary
+        -
+            Called while auto navigation software is attempting to connect to the map
+            and find frontiers for the first time.  
+        
+        Procedure
+        -
+            1) Wait to connect to the map: waits for a maximum of 1 minute then fails
+            2) Calls function to find frontier locations
+            3) Calls function to find centroids
+            4) Calls function to rank centroids based on entropy/distance metric
+            5) Establishes a habitable goal/target
+            6) Publishes frontiers/centroids/goal markers
+
+        Returns:
+            Boolean: True : if completes entire pipeline, finds frontiers/centroids, ranks centroids/ establishes goal
+                     False : otherwise.
+        """        
+
+        #  Waits for map subscriber to send Occupancy Map object
+        #  If no map is received for 1 minute, fails the program.
         flag_map_data_counter = 0
         while navigation.cache['incoming occupancy grid'] == None and not rospy.is_shutdown() :
             rospy.loginfo(f'......Waiting for map data.......')
@@ -137,21 +279,52 @@ class navigation() :
             flag_map_data_counter += 1
             if flag_map_data_counter >= 5 : return False
 
+
+        #  Attempts to update frontier information
         frontiers , expanded_occupancy_grid = self.update_frontiers( navigation.cache['incoming occupancy grid'] )
+
+        #  If non-zero number of frontiers are found
         if frontiers != None :
-            if len(frontiers) == 0 : return False
+
+            if len( frontiers ) == 0 : return False
+
+            #  Attempts to update centroid information
             centroids = self.update_centroids( frontiers )
             if centroids != None :
-                if len(centroids) == 0 : return False
-                self.publish_frontiers(frontiers , centroids)
-                ranked_centroids, paths , _ = self.rank_centroids( frontiers , centroids, expanded_occupancy_grid )
+
+                if len( centroids ) == 0 : return False
+
+                #  Publishes markers for frontiers and centroids
+                self.publish_frontiers( frontiers , centroids )
+
+                #  Ranks centroids using entropy/distance metric
+                    #  distance is calculated by expanding wavefront configured for safe paths
+                    #  Entropy is calculated using monte-carlo sampling
+                ranked_centroids , paths , _ = self.rank_centroids( frontiers , centroids, expanded_occupancy_grid )
+
+                #  Updates cache
                 navigation.cache['active centroids'] = centroids
                 navigation.cache['paths'] = paths
+
                 if ranked_centroids != None :
+
                     if len(ranked_centroids) == 0 : return False
+
+                    #  Publishes marker at goal location
                     self.publish_goal( ranked_centroids[0] )
+
                     navigation.cache['active centroids'] = ranked_centroids
                     navigation.cache['target'] = ranked_centroids[0]
+
+                    #  Runs mini-navigation procedure to rotate the robot
+                    #  in the direction of the safest path found by expanding wavefront
+                    #  This helps guide the navigation software in environments with
+                    #  granular modality.
+                    path_key = navigation.cache['target']
+                    if len(paths[path_key][1]) > 2 :
+                        self.nav_procedure_rotation_goal(paths[path_key][1][-2])
+                    
+                    #  Completes pipeline
                     return True
                 else :
                     rospy.logerr(f'cannot find goal from centroids')
@@ -164,8 +337,27 @@ class navigation() :
             rospy.loginfo(f'Cannot find any frontiers')
             return False
 
+
     def auto_navigation( self ) :
+        """Summary
+        -
+            Primary navigation loop: 
+                manages creating new goals based on cached map information
+                Runs until no new centroids can be found as targets  
+
+                At each loop checks if the cache has a target already
+                    A)  If navigation.cache['target'] has a target send that target to the navigation client
+
+                    B)  If navigation.cache['target'] does not have a target, finds a new target by ranking the 
+                        currently cached centroids.
+
+        Returns:
+            Boolean: Success or failure of navigation software
+        """        
+
         rospy.loginfo(f'Starting automatic navigation')
+
+        #  Attempts to connect navigation software to non-redundant map data
         flag_nav_initialized = False
         for i in range(10) :
             rospy.loginfo(f'Initializing Navigation Software: attempt: {i+1}/{10}') 
@@ -179,12 +371,24 @@ class navigation() :
             rospy.on_shutdown(self.no_action_shutdown)
             return False
 
+
+        #  Redundancy Checks if there are any centroids during startup
         if navigation.cache['active centroids'] == None : 
             rospy.logerr(f'Cannot initialize navigation: inability to detect/segment/ and/or rank frontiers')
 
+
+        #  Iterates until there are no new non-redundant centroids visible by the robot
+        #  (And so no new frontiers)
         while len( navigation.cache['active centroids'] ) > 0 and not rospy.is_shutdown() :
+
+            #  Simple logic:
+                #  If cache has a target, send target to navigation client
+                #  If cache doesn't have a target, find a new target and send it to the navigation client.
+
             if navigation.cache['target'] == None :
                 if len(navigation.cache['frontiers']) > 0 :
+
+                    #  Ranking centroids and assigning a new target
                     ranked_centroids, paths , _ = self.rank_centroids( navigation.cache['frontiers'] , 
                                                             navigation.cache['active centroids'] , 
                                                             navigation.cache['expanded occupancy grid'] )
@@ -192,20 +396,70 @@ class navigation() :
                     navigation.cache['target'] = ranked_centroids[0]
                     navigation.cache['paths'] = paths
                     self.publish_goal( ranked_centroids[0] )
-                #self.publish_frontiers(navigation.cache['frontiers'] , navigation.cache['active centroids'])
+
+                    #  Starts blocking mini-navigation task to rotate the robot in the direction 
+                    #  of the safest path to the target.
+                    path_key = navigation.cache['target']
+                    self.nav_procedure_rotation_goal(paths[path_key][1][-2])
+
+                    #self.publish_frontiers(navigation.cache['frontiers'] , navigation.cache['active centroids'])
+
+            #  Starts non-blocking navigation procedure to go to target.
             self.init_nav_procedure( navigation.cache['target'] )
             rospy.sleep(0)
+        
+        #  Terminating line after all frontiers have been explored.
         rospy.on_shutdown(self.shutdown)
         return True
 
+
     def init_nav_procedure( self , target : tuple ) :
-        x,y = util.tf_occuGrid_to_map( [ navigation.cache['target'] ] )[0]
+        """Summary
+        -
+            Non-blocking navigation procedure to move the robot to the target location
+
+        Args:
+            target (tuple): (x,y) goal location as index in 2D occupancy grid
+        """        
+        x,y = util.tf_occuGrid_to_map( [ target ] )[0]
         rospy.loginfo(f'Targeting point in map frame x = {x} , y = {y}')
+
         pose = self.transform_object( x , y , source = 'map' , target_frame = 'base_footprint' )
         self.navigation_client_push_goal( pose )
 
+
+    def nav_procedure_rotation_goal(self , target) :
+        navigation.cache['robot_position'] = self.init_frame_listener( source='map' , target='base_footprint' )
+        source = navigation.cache['robot_position']
+        orientation = source.transform.rotation
+        nx,ny,nz,w = orientation.x,orientation.y,orientation.z,orientation.w
+        roll,pitch,_ = euler_from_quaternion( [nx,ny,nz,w] )
+        s,t = util.tf_occuGrid_to_map( [ target ] )[0]
+        target_pose = self.transform_object(s,t,source='map',target_frame='base_footprint')
+        s,t = target_pose.position.x , target_pose.position.y
+        theta = math.atan2( t , s )
+        delta_theta = 0.5
+        orientation = quaternion_from_euler( roll , pitch , delta_theta )
+        nx,ny,nz,w = orientation[0],orientation[1],orientation[2],orientation[3]
+        while theta**2 > 0.2 and (theta-math.pi)**2 > 0.2 and not rospy.is_shutdown() :
+            s,t = util.tf_occuGrid_to_map( [ target ] )[0]
+            target_pose = self.transform_object(s,t,source='map',target_frame='base_footprint')
+            s,t = target_pose.position.x , target_pose.position.y
+            theta = math.atan2( t , s )
+            pose = util.to_pose(0,0,0,w,nx,ny,nz)
+            goal = MoveBaseGoal()
+            goal.target_pose.header.frame_id = 'base_footprint'
+            goal.target_pose.pose = pose
+            
+            self.navigation_client.send_goal( goal )
+            #self.wait_for_result_non_stalled()
+            self.navigation_client.wait_for_result()
+            rospy.sleep(0)
+
+
     def no_action_shutdown( self ) :
         rospy.loginfo(f'-------Shutting Down--------')
+
 
     def shutdown( self ) :
         rospy.loginfo(f'Navigation Complete')
@@ -224,12 +478,11 @@ class navigation() :
         rospy.loginfo(f'Application Complete')
 
 
-
-    def transform_object( self , x , y , source = 'map', target_frame = 'base_footprint') :
+    def transform_object( self , x=0, y=0, z=0, nx=0, ny=0,nz=0,w=1, source = 'map', target_frame = 'base_footprint') :
         trans = self.init_frame_listener(target_frame , source)
 
         pose = tf2_geometry_msgs.PoseStamped()
-        pose.pose = util.to_pose(x,y)
+        pose.pose = util.to_pose(x,y,z,w,nx,ny,nz)
         pose.header.frame_id = source
         pose.header.stamp = rospy.Time.now()
 
@@ -314,7 +567,8 @@ class navigation() :
         pub.publish( data.header, data.info , frontiersGrid )
 
         return frontiers , ExpandedOccupancyGrid
-        
+
+
     def publish_frontiers( self , frontiers , centroids ) :
         #  Creates marker objects for frontier points.
         frontier_markerArray = MarkerArray()
@@ -363,6 +617,7 @@ class navigation() :
         centroids = [ util.get_centroid( f )  for f in frontiers ]
         return centroids
 
+
     def rank_centroids( self , frontiers , centroids , occupancy_grid) :
         if navigation.cache['robot position'] == None :
             navigation.cache['robot_position'] = self.init_frame_listener(source='map' , target='base_footprint')
@@ -391,8 +646,12 @@ class navigation() :
 
 
         navigation.cache['active centroids'] = centroids_utility
+        habitable_centroids = []
+        for centroid in centroids_utility :
+            if self.check_habitable(occupancy_grid,centroid) :
 
-        centroids_utility = [self.refactor_by_habitability(occupancy_grid , centroid , paths[centroid][1]) for centroid in centroids_utility ]
+                habitable_centroids += [self.refactor_by_habitability(occupancy_grid , centroid , paths[centroid][1])]
+                paths[habitable_centroids[-1]] = paths[centroid]
 
         #  Publishes occupancy grid of non-segmented frontier points.
         for key,sum_and_path in paths.items( ) :
@@ -403,7 +662,7 @@ class navigation() :
         pub = rospy.Publisher( '/energy_map' , OccupancyGrid , queue_size=1 , latch=True )
         pub.publish( navigation.cache['occupancy grid'].header , navigation.cache['occupancy grid'].info , heatmap )
 
-        return centroids_utility , paths , heatmap
+        return habitable_centroids , paths , heatmap
 
 
     def reconstruct_inhabitable_target(self,expanded_occupancy_grid,target) :
@@ -413,6 +672,7 @@ class navigation() :
         robot_grid_pos = util.tf_map_to_occuGrid([(y,x)])[0]
         paths, _ = util.ExpandingWaveForm( expanded_occupancy_grid , robot_grid_pos , [navigation.cache['target']] )
         return self.refactor_by_habitability(expanded_occupancy_grid , target , paths[target][1] )
+
 
     def check_habitable( self , occupancy_grid, centroid, filter = None) :
         if filter == None :
@@ -437,7 +697,7 @@ class navigation() :
         x,y = target_centroid
         fs =(3,3)
         filter = [(i,j) for i in range(-fs[0] , fs[0]) for j in range(-fs[1] , fs[1])]
-        
+
         if self.check_habitable(occupancy_grid, (x,y) , filter) == 'Habitable' :
             return target_centroid
         
@@ -448,7 +708,6 @@ class navigation() :
             if p > len(path)/2 :
                 break
         return (x,y)
-
 
 
     def publish_goal( self , goal ) :
