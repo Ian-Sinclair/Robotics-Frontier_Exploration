@@ -8,6 +8,8 @@
 
 # modified environment variables
 export CMAKE_PREFIX_PATH="/home/iansinclair/github/COMP-4510-project-2/catkin_ws/devel:$CMAKE_PREFIX_PATH"
+export LD_LIBRARY_PATH="/home/iansinclair/github/COMP-4510-project-2/catkin_ws/devel/lib:$LD_LIBRARY_PATH"
+export PKG_CONFIG_PATH="/home/iansinclair/github/COMP-4510-project-2/catkin_ws/devel/lib/pkgconfig:$PKG_CONFIG_PATH"
 export PWD='/home/iansinclair/github/COMP-4510-project-2/catkin_ws/build'
 export ROSLISP_PACKAGE_DIRECTORIES="/home/iansinclair/github/COMP-4510-project-2/catkin_ws/devel/share/common-lisp:$ROSLISP_PACKAGE_DIRECTORIES"
 export ROS_PACKAGE_PATH="/home/iansinclair/github/COMP-4510-project-2/catkin_ws/src:$ROS_PACKAGE_PATH"

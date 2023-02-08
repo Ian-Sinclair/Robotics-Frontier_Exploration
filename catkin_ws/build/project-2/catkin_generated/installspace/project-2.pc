@@ -1,0 +1,8 @@
+prefix=/home/iansinclair/github/COMP-4510-project-2/catkin_ws/install
+
+Name: project-2
+Description: Description of project-2
+Version: 0.0.0
+Cflags: 
+Libs: -L${prefix}/lib 
+Requires: 

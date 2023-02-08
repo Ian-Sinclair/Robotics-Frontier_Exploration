@@ -1,3 +1,6 @@
 {
-    "cmake.sourceDirectory": "${workspaceFolder}/catkin_ws/src/frontier-exploration"
+    "cmake.sourceDirectory": "${workspaceFolder}/catkin_ws/src/frontier-exploration",
+    "cSpell.words": [
+        "sklearn"
+    ]
 }

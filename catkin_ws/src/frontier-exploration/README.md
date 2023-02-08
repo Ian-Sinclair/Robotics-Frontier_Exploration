@@ -31,6 +31,9 @@
 [![Watch the video for part 2]](https://youtu.be/aaL37uBaii4)
 
 
+-Video for TASK 3
+[![Watch the video for part 3]](https://youtu.be/OnBdq9bTtGM)
+
 # Running Files for task 3
 
 In their own terminal run the following

@@ -394,6 +394,12 @@ _gtest_INCLUDES:FILEPATH=/usr/include/gtest/gtest.h
 //Path to a file.
 _gtest_SOURCES:FILEPATH=/usr/src/gtest/src/gtest.cc
 
+//Value Computed by CMake
+auto_explore_frontiers_BINARY_DIR:STATIC=/home/iansinclair/github/COMP-4510-project-2/catkin_ws/build/auto_explore_frontiers
+
+//Value Computed by CMake
+auto_explore_frontiers_SOURCE_DIR:STATIC=/home/iansinclair/github/COMP-4510-project-2/catkin_ws/src/auto_explore_frontiers
+
 //The directory containing a CMake configuration file for catkin.
 catkin_DIR:PATH=/opt/ros/noetic/share/catkin/cmake
 
@@ -460,6 +466,12 @@ lib:FILEPATH=/opt/ros/noetic/lib/libxmlrpcpp.so
 
 //The directory containing a CMake configuration file for message_runtime.
 message_runtime_DIR:PATH=/opt/ros/noetic/share/message_runtime/cmake
+
+//Value Computed by CMake
+project-2_BINARY_DIR:STATIC=/home/iansinclair/github/COMP-4510-project-2/catkin_ws/build/project-2
+
+//Value Computed by CMake
+project-2_SOURCE_DIR:STATIC=/home/iansinclair/github/COMP-4510-project-2/catkin_ws/src/project-2
 
 //The directory containing a CMake configuration file for rosconsole.
 rosconsole_DIR:PATH=/opt/ros/noetic/share/rosconsole/cmake
