@@ -46,85 +46,95 @@ detect frontier locations, segment them into distinct regions, then navigate
 The majority of the work here is done in auto_exploration.py  
 
 To detect and segment frontiers:
-    - Procedure :
 
-        1) Subscribes to /map topic and takes an occupancy grid object  
-                        - when something is published on the /map topic an internal cache is updated  
+## Procedure
 
-        2) Detects the location of known obstacles and increases their  
-            size based on the cspace of the robot (discovered a priori).  
-                        - This is done to prevent the algorithm from finding frontiers that  
-                            are to close to walls for the robot to explore.  
-                        - Increasing the wall size is done with a standard morphological algorithm, dilation. (in util.py)   
+1) Subscribes to /map topic and takes an occupancy grid object  
 
-        3) Detect frontier regions with edge detection  
-                        - This is done with standard edge detection filtering  
-                            where an adjustable kernel is convoluted against   
-                            the occupancy grid to detect locations where known  
-                            unoccupied tiles (0) meets known space (-1).  
-                            Walls are excluded as edges.  
+    - when something is published on the /map topic an internal cache is updated  
 
-        4) Remove false regions and simplify frontiers topology  
-                        - the edge detection method may mis-classify sensor errors as a new frontier.  
-                            This is a case where a small unknown region is completely surrounded by   
-                            known unoccupied space. And seems to be most commonly caused by gaps in the  
-                            lidar sensors on the robot. (So something should be visible but isn't, and will  
-                            likely become visible on the next time step.)  
-                        - To remove these regions, each frontier is eroded based on the amount of known space  
-                                that surrounds it. (If a region is next to a large block of unknown space it will not be  
-                                eroded. However, if a frontier is surrounded by known space, the size of its topology will   
-                                be reduced and in the event of a false frontier, be eroded into nothingness.)  
-                        - After eroding, all remaining frontiers are dilated, (or have their area increased) to both fill holes  
-                                and join frontier candidates that are extremely close but not connected. This is done to prevent  
-                                over classification of frontier regions during connected component analysis.  
+2) Detects the location of known obstacles and increases their  
+    size based on the cspace of the robot (discovered a priori).  
+    - This is done to prevent the algorithm from finding frontiers that  
+        are to close to walls for the robot to explore.  
 
-        5 ) Frontier segmentation  
-                        - Here the list of all candidate frontier points are segmented into distinct clusters.  
-                        - Features of a good segmentation can include, a continuous topological region,  
-                            (or at least semi-continuous with small jumps.) distance from walls or in general  
-                            are reachable by the robot.  
-                        - Here connected component analysis is used to segment each frontier as semi-continuous   
-                            topological regions.   
-                                By semi-continuous we mean that the region is either fully connected or any gaps between   
-                                components are 'small'.  
-                            This is done by running breadth first search (BFS) sequentially on each frontier point  
-                            candidate and connecting the visited points.  
-                            Successors in the BFS for each point are found by the neighbors of that point on a grid.  
-                            Neighbors are determined by overlaying an (n X n) kernel.   
+    - Increasing the wall size is done with a standard morphological algorithm, dilation. (in util.py)
 
-Then to rank frontier segments,  
+3) Detect frontier regions with edge detection  
+    - This is done with standard edge detection filtering  
+        where an adjustable kernel is convoluted against
+        the occupancy grid to detect locations where known  
+        unoccupied tiles (0) meets known space (-1).  
+        Walls are excluded as edges.  
 
-        - The expected utility of a centroid is an approximation of how quickly  
-            the entire map can be explored if that centroid is discovered next.
+4) Remove false regions and simplify frontiers topology  
 
-        - Here we calculate the utility of a centroid (i,j) by the expected map   
-            entropy around (i,j) over the sum of the 'safest' path from the robot   
-            to the centroid.
+    - the edge detection method may mis-classify sensor errors as a new frontier.  
+      This is a case where a small unknown region is completely surrounded by
+      known unoccupied space. And seems to be most commonly caused by gaps in the  
+      lidar sensors on the robot. (So something should be visible but isn't, and will  
+      likely become visible on the next time step.)  
 
-                    U(i,j) = H(i,j)/d(i,j)
+    - To remove these regions, each frontier is eroded based on the amount of known space  
+      that surrounds it. (If a region is next to a large block of unknown space it will not be  
+      eroded. However, if a frontier is surrounded by known space, the size of its topology will
+      be reduced and in the event of a false frontier, be eroded into nothingness.)  
 
-        - This rewards exploring paths with high entropy (uncertainty) but discourages  
-            exploration to points that are either far away to challenging for the robot  
-            to reach.  
+    - After eroding, all remaining frontiers are dilated, (or have their area increased) to both fill holes  
+      and join frontier candidates that are extremely close but not connected. This is done to prevent  
+      over classification of frontier regions during connected component analysis.  
 
-        - Distance is calculated using expanding wavefront algorithm from the robot to each  
-            centroid where the magnitude of the gradient between points corresponds to the   
-            points distance from walls.  
+5) Frontier segmentation  
 
-            - expanding wavefront returns a dictionary of paths for each centroid where each  
-                path contains both the sum of weights along that path and the indices within the path.  
+    - Here the list of all candidate frontier points are segmented into distinct clusters.  
 
-        - Map entropy of a frontier, F, is found using random sampling in monte carlo simulation  
+    - Features of a good segmentation can include, a continuous topological region,  
+      (or at least semi-continuous with small jumps.) distance from walls or in general  
+      are reachable by the robot.  
 
-            - Define a fixed 2D region, R, to sample the map.
+    - Here connected component analysis is used to segment each frontier as semi-continuous
+      topological regions.
 
-            - For frontier F, randomly select v points as anchors
+    - By semi-continuous we mean that the region is either fully connected or any gaps between
+      components are 'small'.  
+      This is done by running breadth first search (BFS) sequentially on each frontier point  
+      candidate and connecting the visited points.  
+      Successors in the BFS for each point are found by the neighbors of that point on a grid.  
+      Neighbors are determined by overlaying an (n X n) kernel.
 
-            - For each anchor v_i, fix origin of region R at v_i 
+## Then to rank frontier segments
 
-            - randomly sample map points, w_j within region R centered at v_i
+- The expected utility of a centroid is an approximation of how quickly  
+      the entire map can be explored if that centroid is discovered next.
 
-            - Sum and normalize the entropy for each random sample for each v_i.
+- Here we calculate the utility of a centroid (i,j) by the expected map
+      entropy around (i,j) over the sum of the 'safest' path from the robot
+      to the centroid.
+
+              U(i,j) = H(i,j)/d(i,j)
+
+- This rewards exploring paths with high entropy (uncertainty) but discourages  
+      exploration to points that are either far away to challenging for the robot  
+      to reach.  
+
+- Distance is calculated using expanding wavefront algorithm from the robot to each  
+      centroid where the magnitude of the gradient between points corresponds to the
+      points distance from walls.  
+
+  - expanding wavefront returns a dictionary of paths for each centroid where each  
+          path contains both the sum of weights along that path and the indices within the path.  
+
+- Map entropy of a frontier, F, is found using random sampling in monte carlo simulation  
+
+  - Define a fixed 2D region, R, to sample the map.
+
+  - For frontier F, randomly select v points as anchors
+
+  - For each anchor v_i, fix origin of region R at v_i
+
+  - randomly sample map points, w_j within region R centered at v_i
+
+  - Sum and normalize the entropy for each random sample for each v_i.
 
 After the centroids are ranked their habitability is determine and position adjusted accordingly.
 
@@ -133,8 +143,8 @@ After the centroids are ranked their habitability is determine and position adju
 In their own terminal run the following
 
 ```console
-$ roslaunch turtlebot3_gazebo turtlebot3_stage_4.launch
-$ roslaunch turtlebot3_slam turtlebot3_slam.launch slam_methods:=gmapping
+roslaunch turtlebot3_gazebo turtlebot3_stage_4.launch
+roslaunch turtlebot3_slam turtlebot3_slam.launch slam_methods:=gmapping
 ```
 
 This should open a Gazebo and RviZ window.
@@ -162,21 +172,21 @@ the displays tab should contain,
 Next, in a new terminal run,
 
 ```console
-$ roslaunch frontier-exploration turtlebot3_navigation.launch
+roslaunch frontier-exploration turtlebot3_navigation.launch
 ```
 
 If this command errors you may need to resource the terminal
 
 ```console
-$ cd catkin_ws
-$ source devel/setup.bash
-$ roslaunch frontier-exploration turtlebot3_navigation.launch
+cd catkin_ws
+source devel/setup.bash
+roslaunch frontier-exploration turtlebot3_navigation.launch
 ```
 
 Next, run the frontiers identification script
 
 ```console
-$ rosrun frontier-exploration auto_exploration.py
+rosrun frontier-exploration auto_exploration.py
 ```
 
 (you may need to resource the terminal)  
@@ -189,13 +199,13 @@ explores the entire map.
 See the position of the robot with,
 
 ```console
-$ rosrun tf tf_echo /map /base_footprint
+rosrun tf tf_echo /map /base_footprint
 ```
 
 Another way to display the position of the robot is with a listener script in terminal
 
 ```console
-$ rosrun frontier-exploration waffle_tf_listener.py
+rosrun frontier-exploration waffle_tf_listener.py
 ```
 
 This will display the current position of the base of the robot with respect to the map.  
@@ -204,7 +214,7 @@ This can be done with the moveActionClient.
 Running  
 
 ```console
-$ rosrun frontier-exploration moveActionClient.py -x <goal in x> -y <goal in y>
+rosrun frontier-exploration moveActionClient.py -x <goal in x> -y <goal in y>
 ```
 
 will translate the position of the robots base frame by (x,y) units.  
@@ -213,24 +223,24 @@ translating (x=1,y=1) will move the robot right and up one unit. (instead of mov
 Here are a few examples to run.
 
 ```console
-$ rosrun frontier-exploration moveActionClient.py -x -1 -y 1
-$ rosrun frontier-exploration moveActionClient.py -x -1 -y -1
+rosrun frontier-exploration moveActionClient.py -x -1 -y 1
+rosrun frontier-exploration moveActionClient.py -x -1 -y -1
 ```
 
 You can also issue commands without specifying the argument, in the order (x,y)
 
 ```console
-$ rosrun frontier-exploration moveActionClient.py -1 1
-$ rosrun frontier-exploration moveActionClient.py -1 -1
+rosrun frontier-exploration moveActionClient.py -1 1
+rosrun frontier-exploration moveActionClient.py -1 -1
 ```
 
 The pdf file frames.pdf displays a tf tree of the objects on the module.  
 To generate a new pdf, run,
 
 ```console
-$ cd catkin_ws
-$ sudo apt install ros-noetic-tf2-tools
-$ rosrun tf2_tools view_frames.py
+cd catkin_ws
+sudo apt install ros-noetic-tf2-tools
+rosrun tf2_tools view_frames.py
 ```
 
 # Troubleshooting
@@ -240,34 +250,34 @@ $ rosrun tf2_tools view_frames.py
     Which can be resourced by
 
 ```console
-$ cd catkin_ws
-$ source devel/setup.bash
+cd catkin_ws
+source devel/setup.bash
 ```
 
 - Problems with tf package for view_frames.py
   - many of the original tf functions are depriciated and so tf2 has been used in exchange.
 
 ```console
-$ sudo apt install ros-noetic-tf2-tools
-$ rosrun tf2_tools view_frames.py
+sudo apt install ros-noetic-tf2-tools
+rosrun tf2_tools view_frames.py
 ```
 
 - If the application is having trouble connecting to the robot try running the following to change the environment to use the waffle_pi robot.
 
 ```console
-$ export TURTLEBOT3_MODEL=waffle_pi
+export TURTLEBOT3_MODEL=waffle_pi
 ```
 
 - If anything is added to the package, re-make the workspace
 
 ```console
-$ catkin_make
-$ cd project/catkin_ws
-$ source devel/setup.bash
+catkin_make
+cd project/catkin_ws
+source devel/setup.bash
 ```
 
 - If you want to ensure a publisher is publishing
 
 ```console
-$ rostopic echo <topic name>
+rostopic echo <topic name>
 ```
