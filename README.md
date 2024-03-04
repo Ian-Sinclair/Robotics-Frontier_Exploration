@@ -1,6 +1,102 @@
-# COMP-4510-project-2
+# Intelligent Frontier Exploration
 
-# Table of Contents
+## Summary  
+
+The project focuses on implementing an autonomous navigation system capable of detecting and exploring frontiers efficiently in unknown environments. A frontier is defined as the boundary where known unoccupied space meets unknown space. The goal is to segment these frontiers into distinct regions and navigate through them systematically to explore the entire map in the least amount of time.
+
+<div style="text-align:center;">
+  <img src="misc/images/demo2.gif" alt="Turtle Bot Navigation Demo" width="49%">
+  <img src="misc/images/demo.gif" alt="Turtle Bot Navigation Demo" width="49%">
+</div>
+
+Frontier exploration involves several key steps:
+
+1. **Frontier Detection:**
+   - Utilize edge detection techniques to identify frontier regions where known unoccupied space meets unknown space.
+   - Refine detected frontiers to remove false regions and simplify their topology.
+
+2. **Frontier Segmentation:**
+   - Segment candidate frontier points into distinct clusters using connected component analysis algorithms.
+   - Aim for semi-continuous regions that are reachable by the robot.
+
+3. **Centroid Ranking:**
+   - Rank centroids of frontier segments based on expected utility calculations, considering both map entropy and distance from the robot.
+   - Encourage exploration of regions with high uncertainty while ensuring feasibility of reaching each centroid.
+
+4. **Habitability Assessment:**
+   - Assess habitability of ranked centroids and adjust their positions accordingly, optimizing exploration efficiency.
+
+### Watch The Full Demo
+
+<div style="text-align:center;">
+  <a href="https://www.youtube.com/watch?v=OnBdq9bTtGM" target="_blank"><img src="misc/images/thumbnail.png" width="30%"></a>
+</div>
+
+## TurtleBot 3 Waffle Pi Overview
+
+The project utilizes the TurtleBot 3 Waffle Pi model within the Gazebo simulation environment. The TurtleBot 3 is a widely used and versatile mobile robot platform, known for its compact size and agility.
+
+<div style="text-align:center;">
+    <img src="misc/images/turtlebot.png" alt="TurtleBot 3 Waffle Pi Image" width="30%">
+</div>
+
+### Specifications
+
+- **Dimensions:** The TurtleBot 3 is compact and agile, with dimensions suitable for navigating through various indoor environments.
+- **Sensor Suite:** Equipped with a range of sensors including a LiDAR sensor for mapping and navigation, and a camera for visual perception.
+- **Control System:** Utilizes a ROS (Robot Operating System) based control system, allowing for seamless integration with other ROS-based software packages.
+- **Drive System:** The robot features differential drive for precise maneuverability and control.
+- **Payload Capacity:** Capable of carrying additional payloads for various applications such as sensor modules or manipulators.
+
+## Procedure
+
+### Detecting Frontier Regions
+
+**Edge Detection:**  
+Utilizing standard edge detection filtering techniques, a customizable kernel is convoluted against the occupancy grid. This process identifies locations where known unoccupied tiles (0) meet known space (-1), excluding walls as edges.
+
+**Removing False Regions and Simplifying Frontiers Topology:**  
+Edge detection may misclassify sensor errors as new frontiers, especially when a small unknown region is entirely surrounded by known unoccupied space, often due to gaps in lidar sensors. To address this, each frontier undergoes erosion based on the surrounding known space. Regions adjacent to large blocks of unknown space remain uneroded. Remaining frontiers are then dilated to fill holes and connect closely positioned, but unconnected, frontier candidates. This step aims to prevent overclassification of frontier regions during connected component analysis.
+
+### Frontier Segmentation
+
+**Segmenting Candidate Frontier Points:**  
+The process involves segmenting all candidate frontier points into distinct clusters, aiming for characteristics like continuous or semi-continuous topological regions and reachable distances from obstacles.
+
+**Segmentation Technique:**  
+Utilizing connected component analysis, each frontier is segmented into semi-continuous topological regions. In this context, 'semi-continuous' refers to regions that are either fully connected or exhibit small gaps between components. This segmentation entails sequentially running a breadth-first search (BFS) on each frontier point candidate and connecting the visited points. Neighbors for each point are determined by overlaying an (n x n) kernel on the grid.
+
+## Ranking Frontier Segments
+
+The ranking of frontier segments is based on the expected utility of each centroid, which approximates how quickly the entire map can be explored if that centroid is discovered next. This utility is calculated by dividing the expected map entropy around each centroid by the sum of the 'safest' path from the robot to the centroid, following the formula:
+
+<pre style="text-align:center;">
+  U(i,j) = H(i,j)/d(i,j) for the point, (i,j) on the occupancy grid.
+</pre>
+
+This formula incentivizes exploration of paths with high entropy (uncertainty) while discouraging exploration to points that are either too far away or challenging for the robot to reach. Distance is computed using an expanding wavefront algorithm from the robot to each centroid, where the magnitude of the gradient between points corresponds to the points' distance from walls. The expanding wavefront returns a dictionary of paths for each centroid, containing both the sum of weights along that path and the indices within the path.
+
+<div style="text-align:center;">
+    <img src="misc/images/ranking_image.png" alt="Ranking Diagram" width="50%">
+</div>
+
+Map entropy of a frontier, F, is determined using random sampling in Monte Carlo simulation. This involves defining a fixed 2D region, R, to sample the map. For each frontier F, a set of anchor points is randomly selected, and for each anchor point, the origin of region R is fixed. Map points are then randomly sampled within region R, centered at each anchor point, and the entropy is summed and normalized for each random sample.
+
+After ranking the centroids, their habitability is determined, and their positions may be adjusted accordingly.
+
+### Obstacle Avoidance
+
+The project utilizes an out-of-the-box (OOTB) SLAM navigator to guide the robot to target centroid locations. This integration facilitates seamless pairing of any navigator with the intelligent frontier selection algorithm.
+
+To enhance compatibility with the OOTB navigator, two methods are employed to prevent the robot from getting stuck. Firstly, known obstacles' locations are expanded on the occupancy grid based on the robot's c-space. This ensures the robot maintains a safe distance from walls or obstacles that could impede its movement or interfere with the OOTB navigator.
+
+Additionally, centroids that pose challenges for the robot to reach are relocated along the safest path to the robot. The safest path is determined using an entropy-based weighted expanding wavefront algorithm. The habitability of a centroid, representing the expected difficulty for the robot to reach it, is calculated by comparing the tightest point (the point most enclosed by obstacles/walls) to the robot's c-space. This results in a three-rank system: habitable, semi-habitable, or not habitable.
+
+<div style="text-align:center;">
+    <img src="misc/images/Habitable.png" alt="Habitability Diagram" width="50%">
+</div>
+
+## Table of Contents
 
 - catkin_ws
   - The main workspace for the project
@@ -25,120 +121,8 @@
 - util.py
   - utility function for auto_exploration.py contains morphological functions for dilation, erosion and line detection on images (occupancy grids)
   - contains connected component analysis algorithms to detect continuous or semi-continuos regions to binary occupancy grids.
-- Video of setup files at
-[![Watch the video]](https://www.youtube.com/watch?v=dVd2kIACvE8)
-- Video of frontier location algorithm (part 2) here
-[![Watch the video for part 2]](https://youtu.be/aaL37uBaii4)
 
--Video for TASK 3
-[![Watch the video for part 3]](https://youtu.be/OnBdq9bTtGM)
-
-# Summary  
-
-The following is instructions on running frontiers based auto-navigation software  
-
-- A frontier is an area where known unoccupied space meets unknown space.  
-
-The goal of this project is to construct a 'smart' navigation system that can
-detect frontier locations, segment them into distinct regions, then navigate
-/ explore each region in a way that explores the entire map in the least amount of time.  
-
-The majority of the work here is done in auto_exploration.py  
-
-To detect and segment frontiers:
-
-## Procedure
-
-1) Subscribes to /map topic and takes an occupancy grid object  
-
-    - when something is published on the /map topic an internal cache is updated  
-
-2) Detects the location of known obstacles and increases their  
-    size based on the cspace of the robot (discovered a priori).  
-    - This is done to prevent the algorithm from finding frontiers that  
-        are to close to walls for the robot to explore.  
-
-    - Increasing the wall size is done with a standard morphological algorithm, dilation. (in util.py)
-
-3) Detect frontier regions with edge detection  
-    - This is done with standard edge detection filtering  
-        where an adjustable kernel is convoluted against
-        the occupancy grid to detect locations where known  
-        unoccupied tiles (0) meets known space (-1).  
-        Walls are excluded as edges.  
-
-4) Remove false regions and simplify frontiers topology  
-
-    - the edge detection method may mis-classify sensor errors as a new frontier.  
-      This is a case where a small unknown region is completely surrounded by
-      known unoccupied space. And seems to be most commonly caused by gaps in the  
-      lidar sensors on the robot. (So something should be visible but isn't, and will  
-      likely become visible on the next time step.)  
-
-    - To remove these regions, each frontier is eroded based on the amount of known space  
-      that surrounds it. (If a region is next to a large block of unknown space it will not be  
-      eroded. However, if a frontier is surrounded by known space, the size of its topology will
-      be reduced and in the event of a false frontier, be eroded into nothingness.)  
-
-    - After eroding, all remaining frontiers are dilated, (or have their area increased) to both fill holes  
-      and join frontier candidates that are extremely close but not connected. This is done to prevent  
-      over classification of frontier regions during connected component analysis.  
-
-5) Frontier segmentation  
-
-    - Here the list of all candidate frontier points are segmented into distinct clusters.  
-
-    - Features of a good segmentation can include, a continuous topological region,  
-      (or at least semi-continuous with small jumps.) distance from walls or in general  
-      are reachable by the robot.  
-
-    - Here connected component analysis is used to segment each frontier as semi-continuous
-      topological regions.
-
-    - By semi-continuous we mean that the region is either fully connected or any gaps between
-      components are 'small'.  
-      This is done by running breadth first search (BFS) sequentially on each frontier point  
-      candidate and connecting the visited points.  
-      Successors in the BFS for each point are found by the neighbors of that point on a grid.  
-      Neighbors are determined by overlaying an (n X n) kernel.
-
-## Then to rank frontier segments
-
-- The expected utility of a centroid is an approximation of how quickly  
-      the entire map can be explored if that centroid is discovered next.
-
-- Here we calculate the utility of a centroid (i,j) by the expected map
-      entropy around (i,j) over the sum of the 'safest' path from the robot
-      to the centroid.
-
-              U(i,j) = H(i,j)/d(i,j)
-
-- This rewards exploring paths with high entropy (uncertainty) but discourages  
-      exploration to points that are either far away to challenging for the robot  
-      to reach.  
-
-- Distance is calculated using expanding wavefront algorithm from the robot to each  
-      centroid where the magnitude of the gradient between points corresponds to the
-      points distance from walls.  
-
-  - expanding wavefront returns a dictionary of paths for each centroid where each  
-          path contains both the sum of weights along that path and the indices within the path.  
-
-- Map entropy of a frontier, F, is found using random sampling in monte carlo simulation  
-
-  - Define a fixed 2D region, R, to sample the map.
-
-  - For frontier F, randomly select v points as anchors
-
-  - For each anchor v_i, fix origin of region R at v_i
-
-  - randomly sample map points, w_j within region R centered at v_i
-
-  - Sum and normalize the entropy for each random sample for each v_i.
-
-After the centroids are ranked their habitability is determine and position adjusted accordingly.
-
-# Running Files for task 3
+## Getting The Code Up And Running
 
 In their own terminal run the following
 
@@ -194,7 +178,7 @@ This will begin an automatic navigation software where the robot will
 find regions of unknown space and navigate to them in a way that optimally  
 explores the entire map.  
 
-# Running Additional Files Procedure (Not used for task 3)
+## Running Additional Files Procedure
 
 See the position of the robot with,
 
@@ -243,7 +227,7 @@ sudo apt install ros-noetic-tf2-tools
 rosrun tf2_tools view_frames.py
 ```
 
-# Troubleshooting
+## Troubleshooting
 
 - Cannot find package error
   - This is a problem that is liklely caused by the terminal not being sourced correctly.
