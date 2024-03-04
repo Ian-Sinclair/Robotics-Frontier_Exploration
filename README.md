@@ -2,7 +2,7 @@
 
 ## Summary  
 
-The project focuses on implementing an autonomous navigation system capable of detecting and exploring frontiers efficiently in unknown environments. A frontier is defined as the boundary where known unoccupied space meets unknown space. The goal is to segment these frontiers into distinct regions and navigate through them systematically to explore the entire map in the least amount of time.
+Intelligent Frontier Exploration is an autonomous navigation system designed to detect and explore frontiers efficiently in unknown environments. A frontier is defined as the boundary where known unoccupied space meets unknown space. Utilizing edge detection techniques and connected component analysis algorithms, the system segments frontiers into distinct clusters, enabling systematic exploration of the entire map while minimizing exploration time. Leveraging the TurtleBot 3 Waffle Pi model in the Gazebo simulation environment, the project integrates obstacle avoidance mechanisms and advanced path planning algorithms to ensure smooth navigation.  
 
 <div style="text-align:center;">
   <img src="misc/images/demo2.gif" alt="Turtle Bot Navigation Demo" width="49%">
